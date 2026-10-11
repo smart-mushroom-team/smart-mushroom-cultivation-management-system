@@ -5,9 +5,9 @@
 // Các ràng buộc sau nằm trong migration (CUSTOM SQL) vì Prisma không biểu diễn được:
 //   BR-01  uq_rental_trays_active_tray   mỗi khay chỉ thuộc tối đa MỘT đơn đang hiệu lực
 //   BR-06  uq_cycles_growing_tray        mỗi khay tối đa MỘT đợt nuôi GROWING
-//   BR-03  trigger trg_rentals_transitions        PAID->ACTIVE|REJECTED, ACTIVE->EXPIRED->COMPLETED
-//   BR-07  trigger trg_cycles_transitions         giai đoạn chỉ tiến một bước; đợt đã kết thúc là bất biến
-//   BR-04  CHECK chk_cycles_harvest               chỉ HARVESTED khi stage là FRUITING/READY, có sản lượng
+//   BR-04  trigger trg_rentals_rules              PAID->ACTIVE|REJECTED, ACTIVE->EXPIRED->COMPLETED
+//   BR-06  trigger trg_cycles_rules               giai đoạn chỉ tiến một bước; đợt đã kết thúc là bất biến
+//   BR-06  CHECK chk_cycles_harvest               chỉ HARVESTED khi stage là FRUITING/READY, có sản lượng
 //   ...    nhiều CHECK khác (số tiền, ngày, lý do bắt buộc) — xem migration.
 
 generator client {
