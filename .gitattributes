@@ -1,0 +1,8 @@
+# Thống nhất ký tự xuống dòng LF (tránh lỗi script .sh/Docker khi clone trên Windows)
+* text=auto eol=lf
+*.sh text eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.docx binary
+*.pdf binary

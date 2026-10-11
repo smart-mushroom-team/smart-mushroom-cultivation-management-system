@@ -1,0 +1,46 @@
+'use strict';
+
+/** Vai trò người dùng (khớp với enum Role trong schema Identity). */
+const ROLES = Object.freeze({
+  ADMIN: 'ADMIN',
+  OPERATOR: 'OPERATOR',
+  CUSTOMER: 'CUSTOMER',
+});
+
+/** Nhóm "nhân viên trại": Operator, Admin kế thừa quyền Operator (SRS 2.4). */
+const STAFF_ROLES = Object.freeze([ROLES.OPERATOR, ROLES.ADMIN]);
+
+/** Tên header dùng chung giữa các thành phần. */
+const HEADERS = Object.freeze({
+  REQUEST_ID: 'x-request-id',
+  SERVICE_KEY: 'x-service-key',
+  DEVICE_KEY: 'x-device-key',
+});
+
+/** Mã lỗi chuẩn trả về trong body: { error: { code, message } }. */
+const ERROR_CODES = Object.freeze({
+  BAD_REQUEST: 'BAD_REQUEST',
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
+  UNAUTHORIZED: 'UNAUTHORIZED',
+  TOKEN_EXPIRED: 'TOKEN_EXPIRED',
+  FORBIDDEN: 'FORBIDDEN',
+  NOT_FOUND: 'NOT_FOUND',
+  CONFLICT: 'CONFLICT',
+  INVALID_STATE: 'INVALID_STATE',
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+  ACCOUNT_DISABLED: 'ACCOUNT_DISABLED',
+  INSUFFICIENT_TRAYS: 'INSUFFICIENT_TRAYS',
+  PAYMENT_FAILED: 'PAYMENT_FAILED',
+  DEMO_MODE_DISABLED: 'DEMO_MODE_DISABLED',
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
+  UNSUPPORTED_MEDIA_TYPE: 'UNSUPPORTED_MEDIA_TYPE',
+  TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
+  NOT_IMPLEMENTED: 'NOT_IMPLEMENTED',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  BAD_GATEWAY: 'BAD_GATEWAY',
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  GATEWAY_TIMEOUT: 'GATEWAY_TIMEOUT',
+  ACCESS_CHECK_UNAVAILABLE: 'ACCESS_CHECK_UNAVAILABLE',
+});
+
+module.exports = { ROLES, STAFF_ROLES, HEADERS, ERROR_CODES };

@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Prisma Client được sinh tự động (npm run prisma:generate)
+**/generated/
+
+# Biến môi trường & bí mật — TUYỆT ĐỐI không commit
+.env
+.env.*
+!.env.example
+secrets/*
+!secrets/.gitkeep
+*firebase*adminsdk*.json
+*service-account*.json
+*serviceAccount*.json
+google-services.json
+GoogleService-Info.plist
+
+# Logs, build, coverage
+*.log
+npm-debug.log*
+coverage/
+dist/
+build/
+
+# Hệ điều hành / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
