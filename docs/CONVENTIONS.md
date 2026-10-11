@@ -112,7 +112,7 @@ _Require approvals (1)_, _Require status checks to pass_ (chọn job `lint-test`
 ## 7. Test
 
 - `npm test` dùng test runner có sẵn của Node (`node --test`), không cần cài thêm.
-- Quy tắc nghiệp vụ quan trọng phải có test: BR-01 (đặt đồng thời), BR-04 (chỉ thu hoạch khi FRUITING/READY),
-  BR-05 (ngày hết hạn), BR-07 (chỉ tiến giai đoạn), BR-08 (quyền xem phòng), BR-12 (N lần liên tiếp),
+- Quy tắc nghiệp vụ quan trọng phải có test: BR-01 (đặt đồng thời), BR-04 (vòng đời đơn thuê), BR-06 (chỉ thu hoạch khi FRUITING/READY, giai đoạn chỉ tiến),
+  BR-05 (ngày hết hạn), BR-07 (hết hạn và hoàn tất), BR-08 (quyền xem phòng), BR-12 (N lần liên tiếp),
   BR-14 (job idempotent).
 - Test API mẫu nằm ở `services/*/test/routes.test.js` (bảng phân quyền); thêm test cho từng endpoint khi cài đặt.

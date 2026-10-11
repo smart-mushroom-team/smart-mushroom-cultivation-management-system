@@ -13,8 +13,8 @@ info:
     - Lỗi: `{ "error": { "code", "message", "details?", "requestId" } }`.
     - Các endpoint `/internal/**` **chỉ dùng giữa Core và Monitoring** (header `X-Service-Key`), Gateway không định tuyến ra ngoài.
 
-    **Vòng đời đơn thuê** (BR-03): `PAID → ACTIVE → EXPIRED → COMPLETED`, hoặc `PAID → REJECTED`.
-    **Giai đoạn đợt nuôi** (BR-07): `SEEDING → INCUBATING → FRUITING → READY` (chỉ tiến lên từng bước).
+    **Vòng đời đơn thuê** (BR-04): `PAID → ACTIVE → EXPIRED → COMPLETED`, hoặc `PAID → REJECTED`.
+    **Giai đoạn đợt nuôi** (BR-06): `SEEDING → INCUBATING → FRUITING → READY` (chỉ tiến lên từng bước).
 servers:
   - url: http://localhost:8080/api/core
     description: Qua API Gateway (dùng cái này)
@@ -586,7 +586,7 @@ paths:
       operationId: updateCycleProgress
       summary: Cập nhật tiến độ (FR-18, UC-06) — STAFF
       description: |
-        Đổi giai đoạn chỉ được **tiến lên đúng một bước** (BR-07); lùi hoặc nhảy bước trả `INVALID_STATE`.
+        Đổi giai đoạn chỉ được **tiến lên đúng một bước** (BR-06); lùi hoặc nhảy bước trả `INVALID_STATE`.
         Có thể cập nhật kèm giống nấm, ngày thu hoạch dự kiến, ghi chú. Mỗi lần đổi giai đoạn sinh thông báo cho khách.
       requestBody:
         required: true

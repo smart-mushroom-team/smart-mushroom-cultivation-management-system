@@ -250,15 +250,20 @@ nên bỏ khỏi danh sách không thực hiện.
 chống lỗi logic và truy cập đồng thời. Mọi ràng buộc dưới đây có test trong `services/*/test/db.test.js`
 (chạy migration thật trên PostgreSQL bằng PGlite).
 
+> **Đánh số BR theo SRS v2.1/v2.2.** Các comment `BR-03/BR-04/BR-07` trong migration `20261011090000_init` từng bị gán nhầm
+> số (BR-03 là trạng thái **khay**, BR-04 là trạng thái **đơn thuê**, BR-06 gồm giai đoạn đợt nuôi và điều kiện thu hoạch,
+> BR-07 là hết hạn/hoàn tất). Migration `20261011120000_correct_br_references` đã sửa thông báo lỗi của trigger; bảng dưới là
+> đối chiếu đúng.
+
 ### Core
 
 | Quy tắc                                                                                | Cơ chế                                                                    | Tên                                                  |
 | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------- |
 | **BR-01** Mỗi khay thuộc tối đa một đơn đang hiệu lực                                  | Partial unique index `rental_trays(tray_id) WHERE is_active`              | `uq_rental_trays_active_tray`                        |
 | **BR-06** Mỗi khay tối đa một đợt `GROWING`                                            | Partial unique index `cultivation_cycles(tray_id) WHERE status='GROWING'` | `uq_cycles_growing_tray`                             |
-| **BR-03** Vòng đời đơn: `PAID→ACTIVE\|REJECTED`, `ACTIVE→EXPIRED→COMPLETED`            | Trigger; cấm đổi chủ đơn, gói, giá, số khay, tổng tiền sau khi tạo        | `trg_rentals_rules`                                  |
-| **BR-07** Giai đoạn chỉ tiến đúng một bước; đợt đã kết thúc bất biến                   | Trigger; CHECK cho nhật ký tiến độ                                        | `trg_cycles_rules`, `chk_progress_logs_transition`   |
-| **BR-04** Chỉ thu hoạch khi `FRUITING`/`READY`, có sản lượng và bàn giao               | CHECK                                                                     | `chk_cycles_harvest`                                 |
+| **BR-04** Vòng đời đơn: `PAID→ACTIVE\|REJECTED`, `ACTIVE→EXPIRED→COMPLETED`            | Trigger; cấm đổi chủ đơn, gói, giá, số khay, tổng tiền sau khi tạo        | `trg_rentals_rules`                                  |
+| **BR-06** Giai đoạn chỉ tiến đúng một bước; đợt đã kết thúc bất biến                   | Trigger; CHECK cho nhật ký tiến độ                                        | `trg_cycles_rules`, `chk_progress_logs_transition`   |
+| **BR-06** Chỉ thu hoạch khi `FRUITING`/`READY`, có sản lượng và bàn giao               | CHECK                                                                     | `chk_cycles_harvest`                                 |
 | FR-14 Từ chối đơn bắt buộc có lý do; đơn đã xử lý có người xử lý                       | CHECK                                                                     | `chk_rentals_reject_reason`, `chk_rentals_processed` |
 | FR-20 Loại bỏ đợt nuôi bắt buộc có lý do                                               | CHECK                                                                     | `chk_cycles_discard_reason`                          |
 | Tổng tiền = đơn giá × số khay; số khay, số ngày > 0                                    | CHECK                                                                     | `chk_rentals_amounts`                                |
@@ -293,9 +298,9 @@ chống lỗi logic và truy cập đồng thời. Mọi ràng buộc dưới đ
 
 ### Vẫn do ứng dụng đảm nhiệm
 
-BR-02 (Customer chỉ thấy dữ liệu của mình), BR-08 (quyền xem camera), BR-11 (3 chu kỳ => OFFLINE), N lần liên tiếp của
+BR-02 (Customer chỉ thấy dữ liệu của mình), BR-03 (trạng thái khay), BR-07 (hết hạn và hoàn tất), BR-08 (quyền xem camera), BR-11 (3 chu kỳ => OFFLINE), N lần liên tiếp của
 BR-12, BR-13 (job dọn 7 ngày), tính `endDate = startDate + durationDays`, chuyển trạng thái khay
-(`AVAILABLE→RESERVED→RENTED→CLEANING→AVAILABLE`), và toàn bộ giao dịch nhiều bước (đặt thuê, xác nhận, từ chối, hết hạn).
+(`AVAILABLE→RESERVED→RENTED→CLEANING→AVAILABLE`, BR-03), và toàn bộ giao dịch nhiều bước (đặt thuê, xác nhận, từ chối, hết hạn).
 
 ## 5. Ghi chú cho người cài đặt
 

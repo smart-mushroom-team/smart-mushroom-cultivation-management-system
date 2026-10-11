@@ -135,7 +135,7 @@ test('Core: migration áp dụng được trên PostgreSQL thật', async (t) =>
   });
 
   await t.test(
-    'BR-07: giai đoạn chỉ tiến đúng một bước, không lùi, đợt đã kết thúc là bất biến',
+    'BR-06: giai đoạn chỉ tiến đúng một bước, không lùi, đợt đã kết thúc là bất biến',
     async () => {
       const [roomId, pkgId] = [await f.room(), await f.pkg()];
       const trayId = await f.tray(roomId);
@@ -145,9 +145,9 @@ test('Core: migration áp dụng được trên PostgreSQL thật', async (t) =>
       const setStage = (s) =>
         db.query(`UPDATE cultivation_cycles SET stage = $2 WHERE id = $1`, [c, s]);
 
-      await expectDbError(setStage('FRUITING'), SQLSTATE.CHECK, /BR-07/); // nhảy bước
+      await expectDbError(setStage('FRUITING'), SQLSTATE.CHECK, /BR-06/); // nhảy bước
       await setStage('INCUBATING');
-      await expectDbError(setStage('SEEDING'), SQLSTATE.CHECK, /BR-07/); // lùi
+      await expectDbError(setStage('SEEDING'), SQLSTATE.CHECK, /BR-06/); // lùi
       await setStage('FRUITING');
 
       await db.query(
@@ -163,7 +163,7 @@ test('Core: migration áp dụng được trên PostgreSQL thật', async (t) =>
     },
   );
 
-  await t.test('BR-04: chỉ thu hoạch khi FRUITING/READY và phải ghi đủ sản lượng', async () => {
+  await t.test('BR-06: chỉ thu hoạch khi FRUITING/READY và phải ghi đủ sản lượng', async () => {
     const [roomId, pkgId] = [await f.room(), await f.pkg()];
     const trayId = await f.tray(roomId);
     const rental = await f.rental(pkgId);
@@ -222,12 +222,12 @@ test('Core: migration áp dụng được trên PostgreSQL thật', async (t) =>
     await expectDbError(log(null, 'FRUITING'), SQLSTATE.CHECK);
   });
 
-  await t.test('BR-03: vòng đời đơn thuê và tính bất biến của dữ liệu tài chính', async () => {
+  await t.test('BR-04: vòng đời đơn thuê và tính bất biến của dữ liệu tài chính', async () => {
     const pkgId = await f.pkg();
     const rental = await f.rental(pkgId, 2);
     const setStatus = (s) => db.query(`UPDATE rentals SET status = $2 WHERE id = $1`, [rental, s]);
 
-    await expectDbError(setStatus('COMPLETED'), SQLSTATE.CHECK, /BR-03/); // PAID -> COMPLETED
+    await expectDbError(setStatus('COMPLETED'), SQLSTATE.CHECK, /BR-04/); // PAID -> COMPLETED
     await expectDbError(setStatus('ACTIVE'), SQLSTATE.CHECK, /chk_rentals_confirmed_dates/); // thiếu ngày
     await expectDbError(
       db.query(`UPDATE rentals SET total_amount = 1 WHERE id = $1`, [rental]),
@@ -236,11 +236,11 @@ test('Core: migration áp dụng được trên PostgreSQL thật', async (t) =>
     );
 
     await f.confirm(rental); // PAID -> ACTIVE
-    await expectDbError(setStatus('PAID'), SQLSTATE.CHECK, /BR-03/); // lùi
-    await expectDbError(setStatus('COMPLETED'), SQLSTATE.CHECK, /BR-03/); // nhảy bước
+    await expectDbError(setStatus('PAID'), SQLSTATE.CHECK, /BR-04/); // lùi
+    await expectDbError(setStatus('COMPLETED'), SQLSTATE.CHECK, /BR-04/); // nhảy bước
     await setStatus('EXPIRED');
     await setStatus('COMPLETED');
-    await expectDbError(setStatus('ACTIVE'), SQLSTATE.CHECK, /BR-03/);
+    await expectDbError(setStatus('ACTIVE'), SQLSTATE.CHECK, /BR-04/);
   });
 
   await t.test('FR-14: từ chối đơn bắt buộc có lý do và người xử lý', async () => {
