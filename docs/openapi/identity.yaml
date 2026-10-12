@@ -86,7 +86,12 @@ paths:
       tags: [Auth]
       operationId: refreshToken
       summary: Làm mới access token
-      description: Đổi refresh token còn hạn lấy access token mới (và refresh token mới, token cũ bị thu hồi).
+      description: |
+        Đổi refresh token còn hạn lấy access token mới **và refresh token mới**; token cũ bị thu hồi (xoay vòng,
+        mỗi refresh token chỉ dùng được **một lần**). Access token mới mang vai trò và họ tên mới nhất của người dùng.
+
+        Dùng lại một refresh token đã bị thu hồi được coi là dấu hiệu bị đánh cắp: **toàn bộ** phiên của người dùng
+        đó bị thu hồi và phải đăng nhập lại. Client phải gửi các yêu cầu làm mới **tuần tự** (không gửi song song).
       security: []
       requestBody:
         required: true
@@ -100,6 +105,11 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/TokenPair' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Tài khoản đã bị vô hiệu hóa (`ACCOUNT_DISABLED`); mọi refresh token của tài khoản bị thu hồi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '422': { $ref: '#/components/responses/ValidationError' }
   /auth/logout:
     post:
@@ -132,7 +142,7 @@ paths:
       tags: [Me]
       operationId: updateMyProfile
       summary: Sửa hồ sơ của mình (FR-05)
-      description: Chỉ sửa được họ tên, số điện thoại, địa chỉ. Không sửa được email, vai trò.
+      description: Chỉ sửa được họ tên, số điện thoại, địa chỉ (gửi `null` để xóa). Gửi email, vai trò, trạng thái hoặc trường lạ bị từ chối `422`.
       requestBody:
         required: true
         content:
@@ -208,10 +218,15 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
     patch:
       tags: [Users]
       operationId: updateUser
       summary: Sửa thông tin / gán vai trò (FR-04) — ADMIN
+      description: |
+        Sửa họ tên, vai trò, số điện thoại, địa chỉ. Không sửa được email, mật khẩu, trạng thái (dùng các endpoint riêng).
+        Vai trò mới có hiệu lực ở access token sau lần làm mới kế tiếp.
+        Trả `409 INVALID_STATE` khi hạ quyền **Admin đang hoạt động cuối cùng**.
       requestBody:
         required: true
         content:
@@ -235,7 +250,11 @@ paths:
       tags: [Users]
       operationId: deactivateUser
       summary: Vô hiệu hóa tài khoản (FR-04, BR-15) — ADMIN
-      description: Không xóa tài khoản. Không cho Admin tự vô hiệu hóa chính mình (`INVALID_STATE`).
+      description: |
+        Không xóa tài khoản (BR-15) và thu hồi mọi refresh token của người đó; access token đang cấp còn hiệu lực
+        tối đa đến khi hết hạn (BR-16). Idempotent: vô hiệu hóa lần hai vẫn trả `200`.
+
+        Trả `409 INVALID_STATE` khi Admin tự vô hiệu hóa chính mình, hoặc khi đó là **Admin đang hoạt động cuối cùng**.
       responses:
         '200':
           description: Tài khoản sau khi vô hiệu hóa.
@@ -245,6 +264,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '409': { $ref: '#/components/responses/Conflict' }
   /users/{id}/activate:
     parameters:
@@ -262,6 +282,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
   /users/{id}/reset-password:
     parameters:
       - $ref: '#/components/parameters/UserId'

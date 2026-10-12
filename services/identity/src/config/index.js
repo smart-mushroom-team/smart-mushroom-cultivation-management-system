@@ -10,6 +10,7 @@ function loadConfig() {
     refreshTokenTtlDays: intEnv('REFRESH_TOKEN_TTL_DAYS', 7),
     maxFailedLogins: intEnv('MAX_FAILED_LOGINS', 5), // UC-01 2c
     lockMinutes: intEnv('LOCK_MINUTES', 5),
+    bcryptRounds: intEnv('BCRYPT_ROUNDS', 10), // chi phí băm mật khẩu (test dùng 4 cho nhanh)
   };
 }
 

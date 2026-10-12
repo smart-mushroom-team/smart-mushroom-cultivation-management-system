@@ -29,6 +29,21 @@ async function migratedDb(service) {
   return db;
 }
 
+/**
+ * Bọc một PGlite thành giao diện `db` giống createPrismaDb (query + transaction).
+ * Repository/service chạy trên adapter này trong test y hệt như chạy trên Prisma.
+ */
+function createPgliteDb(pg) {
+  const wrap = (client, inTx) => {
+    const db = {
+      query: async (sql, params = []) => (await client.query(sql, params)).rows,
+      transaction: inTx ? (fn) => fn(db) : (fn) => pg.transaction((tx) => fn(wrap(tx, true))),
+    };
+    return db;
+  };
+  return wrap(pg, false);
+}
+
 /** Mã SQLSTATE hay gặp. */
 const SQLSTATE = Object.freeze({
   UNIQUE: '23505',
@@ -51,4 +66,4 @@ async function expectDbError(promise, code, messagePattern) {
   });
 }
 
-module.exports = { migratedDb, expectDbError, SQLSTATE };
+module.exports = { migratedDb, createPgliteDb, expectDbError, SQLSTATE };

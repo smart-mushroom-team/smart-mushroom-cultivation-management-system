@@ -1,13 +1,17 @@
 'use strict';
 
 const { Router } = require('express');
-const controller = require('../controllers/auth.controller');
+const { validate } = require('@mushroom/shared');
+const v = require('../validators/auth.validator');
 
-const router = Router();
+/** Công khai (không cần JWT): đăng ký, đăng nhập, làm mới token, đăng xuất. */
+function createAuthRoutes(controller) {
+  const router = Router();
+  router.post('/register', validate({ body: v.registerBody }), controller.register);
+  router.post('/login', validate({ body: v.loginBody }), controller.login);
+  router.post('/refresh', validate({ body: v.refreshBody }), controller.refresh);
+  router.post('/logout', validate({ body: v.refreshBody }), controller.logout);
+  return router;
+}
 
-router.post('/register', controller.register);
-router.post('/login', controller.login);
-router.post('/refresh', controller.refresh);
-router.post('/logout', controller.logout);
-
-module.exports = router;
+module.exports = { createAuthRoutes };
