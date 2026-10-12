@@ -26,7 +26,9 @@ function createServiceProxy({ target, timeoutMs, logger }) {
   return createProxyMiddleware({
     target,
     changeOrigin: true,
-    timeout: timeoutMs,
+    // Chỉ đặt proxyTimeout (thời gian chờ service phía sau trả lời => 504). KHÔNG đặt option `timeout`:
+    // nó thêm một listener 'timeout' vào socket của client cho MỖI request, tích tụ vô hạn trên kết nối
+    // keep-alive (rò rỉ listener, cảnh báo MaxListenersExceededWarning sau 10 request).
     proxyTimeout: timeoutMs,
     logger: { info: () => {}, warn: (m) => logger.warn(m), error: (m) => logger.error(m) },
     on: {
