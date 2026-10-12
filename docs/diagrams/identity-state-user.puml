@@ -1,0 +1,27 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 130
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #444444
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 260
+title Trạng thái tài khoản (users.status)
+state "ACTIVE" as Active {
+  state "Bình thường" as Normal
+  state "Tạm khóa\n(locked_until > now)" as Locked
+  [*] --> Normal
+  Normal --> Locked : sai mật khẩu 5 lần liên tiếp
+  Locked --> Normal : hết 5 phút, hoặc Admin kích hoạt /\nđặt lại mật khẩu
+}
+state "INACTIVE" as Inactive
+
+[*] --> Active : đăng ký (CUSTOMER)\nhoặc Admin tạo tài khoản
+Active --> Inactive : Admin vô hiệu hóa\n(thu hồi mọi refresh token)
+Inactive --> Active : Admin kích hoạt lại\n(gỡ khóa đăng nhập)
+note bottom of Inactive
+  BR-15: không xóa tài khoản.
+  Không vô hiệu hóa được chính mình
+  hoặc Admin đang hoạt động cuối cùng.
+end note
+@enduml

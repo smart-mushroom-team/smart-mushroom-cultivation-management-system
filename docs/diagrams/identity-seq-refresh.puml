@@ -1,0 +1,48 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 130
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #444444
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 260
+title Làm mới token, xoay vòng (BR-16)
+actor Client as "Web / Mobile"
+participant Gateway
+participant "Identity\n(auth.service)" as Identity
+database "identity_db" as DB
+
+Client -> Gateway : POST /api/identity/auth/refresh\n{ refreshToken }
+Gateway -> Identity : POST /auth/refresh
+Identity -> Identity : băm SHA-256 refreshToken
+Identity -> DB : BEGIN
+Identity -> DB : SELECT refresh_tokens theo hash
+alt không tìm thấy, hoặc đã hết hạn
+  Identity -> DB : COMMIT
+  Identity --> Client : 401 (token không hợp lệ hoặc đã hết hạn)
+else token đã bị thu hồi (bị dùng lại)
+  Identity -> DB : thu hồi TOÀN BỘ refresh token của người dùng
+  Identity -> DB : COMMIT
+  Identity --> Client : 401 (nghi bị đánh cắp, phải đăng nhập lại)
+else người dùng INACTIVE
+  Identity -> DB : thu hồi toàn bộ refresh token
+  Identity -> DB : COMMIT
+  Identity --> Client : 403 ACCOUNT_DISABLED
+else còn hiệu lực
+  Identity -> DB : UPDATE ... SET revoked_at WHERE id = ? AND revoked_at IS NULL
+  alt 0 dòng (request đồng thời đã dùng trước)
+    Identity -> DB : thu hồi toàn bộ refresh token
+    Identity -> DB : COMMIT
+    Identity --> Client : 401
+  else 1 dòng (giành quyền thành công)
+    Identity -> DB : INSERT refresh token mới
+    Identity -> DB : COMMIT
+    Identity --> Client : 200 { accessToken mới (vai trò, họ tên mới nhất), refreshToken mới }
+  end
+end
+note over Identity, DB
+  Bên trong giao dịch chỉ TRẢ KẾT QUẢ, không ném lỗi:
+  ném lỗi sẽ ROLLBACK và việc thu hồi token bị hủy.
+  Lỗi chỉ được ném SAU KHI giao dịch đã COMMIT.
+end note
+@enduml
