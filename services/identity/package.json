@@ -5,13 +5,13 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "dev": "node --watch --env-file=.env src/index.js",
     "test": "node --test",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "db:seed": "node prisma/seed.js"
+    "db:seed": "node --env-file=.env prisma/seed.js"
   },
   "dependencies": {
     "@mushroom/shared": "*",

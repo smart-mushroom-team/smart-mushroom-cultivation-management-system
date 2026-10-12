@@ -165,3 +165,81 @@ test('service phía sau không chạy: trả 503 theo format chuẩn', async (t)
   assert.equal(json.error.code, 'SERVICE_UNAVAILABLE');
   assert.ok(json.error.requestId);
 });
+
+test('service phía sau trả lời quá chậm: trả 504 theo format chuẩn', async (t) => {
+  const slow = http.createServer(() => {
+    /* không bao giờ trả lời */
+  });
+  const slowPort = await listen(slow);
+  const logger = createLogger('gateway-test');
+  logger.level = 'silent';
+  const config = {
+    jwtSecret: SECRET,
+    corsOrigins: [],
+    timeoutMs: 300, // rất ngắn để test nhanh
+    maxBodyBytes: 1024,
+    rateLimitPerMinute: 1000,
+    trustProxy: false,
+    targets: {
+      identity: `http://127.0.0.1:${slowPort}`,
+      core: `http://127.0.0.1:${slowPort}`,
+      monitoring: `http://127.0.0.1:${slowPort}`,
+    },
+  };
+  const gw = createApp({ config, logger }).listen(0, '127.0.0.1');
+  await new Promise((resolve) => gw.once('listening', resolve));
+  t.after(() => {
+    gw.closeAllConnections();
+    gw.close();
+    slow.closeAllConnections();
+    slow.close();
+  });
+
+  const started = Date.now();
+  const res = await fetch(`http://127.0.0.1:${gw.address().port}/api/core/rooms`, {
+    headers: { authorization: `Bearer ${token()}` },
+  });
+  assert.equal(res.status, 504);
+  assert.equal((await res.json()).error.code, 'GATEWAY_TIMEOUT');
+  assert.ok(Date.now() - started < 3000, 'phải trả lời nhanh sau timeout chứ không treo');
+});
+
+test('nhiều request liên tiếp trên một kết nối keep-alive không gây rò rỉ listener', async (t) => {
+  const { base } = await setup(t);
+  const warnings = [];
+  const onWarning = (w) => warnings.push(w.name);
+  process.on('warning', onWarning);
+  t.after(() => process.off('warning', onWarning));
+
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 1 });
+  t.after(() => agent.destroy());
+  const get = () =>
+    new Promise((resolve, reject) => {
+      http
+        .get(`${base}/health`, { agent }, (res) => {
+          res.resume();
+          res.on('end', () => resolve(res.statusCode));
+        })
+        .on('error', reject);
+    });
+  const auth = token();
+  const getProxied = () =>
+    new Promise((resolve, reject) => {
+      http
+        .get(
+          `${base}/api/core/rooms`,
+          { agent, headers: { authorization: `Bearer ${auth}` } },
+          (res) => {
+            res.resume();
+            res.on('end', () => resolve(res.statusCode));
+          },
+        )
+        .on('error', reject);
+    });
+  for (let i = 0; i < 15; i += 1) {
+    assert.equal(await get(), 200);
+    assert.equal(await getProxied(), 200);
+  }
+  await new Promise((r) => setTimeout(r, 50));
+  assert.ok(!warnings.includes('MaxListenersExceededWarning'), `cảnh báo: ${warnings.join(',')}`);
+});

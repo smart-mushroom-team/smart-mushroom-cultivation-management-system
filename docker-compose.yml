@@ -145,7 +145,7 @@ services:
       IDENTITY_URL: http://identity:3001
       CORE_URL: http://core:3002
       MONITORING_URL: http://monitoring:3003
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:8090}
       GATEWAY_TIMEOUT_MS: ${GATEWAY_TIMEOUT_MS:-60000}
       GATEWAY_RATE_LIMIT_PER_MIN: ${GATEWAY_RATE_LIMIT_PER_MIN:-600}
     ports:

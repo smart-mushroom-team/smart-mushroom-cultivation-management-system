@@ -1,15 +1,25 @@
 'use strict';
 
-const { notImplemented } = require('@mushroom/shared');
+/**
+ * Controller chỉ làm việc với HTTP: lấy dữ liệu ĐÃ KIỂM TRA từ req.validated, gọi service, trả response.
+ * Không chứa quy tắc nghiệp vụ, không truy cập DB. (Express 5 tự chuyển lỗi của hàm async tới errorHandler.)
+ */
+function createAuthController({ authService }) {
+  return {
+    register: async (req, res) => {
+      res.status(201).json(await authService.register(req.validated.body));
+    },
+    login: async (req, res) => {
+      res.json(await authService.login(req.validated.body));
+    },
+    refresh: async (req, res) => {
+      res.json(await authService.refresh(req.validated.body));
+    },
+    logout: async (req, res) => {
+      await authService.logout(req.validated.body);
+      res.status(204).end();
+    },
+  };
+}
 
-// TODO: thay từng stub bằng logic thật (controller chỉ nhận/trả request, nghiệp vụ nằm ở services/).
-module.exports = {
-  // POST /register — FR-03: khách tự đăng ký (role CUSTOMER)
-  register: notImplemented('auth.register'),
-  // POST /login — FR-02: email + mật khẩu, trả JWT + refresh token; khóa 5 phút nếu sai 5 lần
-  login: notImplemented('auth.login'),
-  // POST /refresh — cấp access token mới từ refresh token
-  refresh: notImplemented('auth.refresh'),
-  // POST /logout — thu hồi refresh token
-  logout: notImplemented('auth.logout'),
-};
+module.exports = { createAuthController };

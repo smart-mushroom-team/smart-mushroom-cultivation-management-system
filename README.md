@@ -74,7 +74,7 @@ Chạy hạ tầng bằng Docker, code Node chạy trên máy (debug dễ hơn):
 
 ```bash
 docker compose up -d postgres
-cp services/core/.env.example services/core/.env      # DATABASE_URL trỏ localhost:5432
+cp services/core/.env.example services/core/.env      # DATABASE_URL trỏ localhost:5433
 npm run dev -w services/core
 ```
 

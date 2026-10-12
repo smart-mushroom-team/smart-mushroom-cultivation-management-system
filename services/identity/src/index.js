@@ -1,13 +1,14 @@
 'use strict';
 
-const { createLogger } = require('@mushroom/shared');
+const { createLogger, createPrismaDb } = require('@mushroom/shared');
 const { loadConfig } = require('./config');
 const { createApp } = require('./app');
-const { disconnectPrisma } = require('./config/prisma');
+const { getPrisma, disconnectPrisma } = require('./config/prisma');
 
 const logger = createLogger('identity');
 const config = loadConfig();
-const app = createApp({ config, logger });
+const db = createPrismaDb(getPrisma()); // Prisma chỉ làm bộ kết nối + giao dịch; SQL nằm ở repositories/
+const app = createApp({ config, logger, db });
 
 const server = app.listen(config.port, () => {
   logger.info({ port: config.port }, 'Identity Service đã khởi động');

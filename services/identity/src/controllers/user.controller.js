@@ -1,22 +1,30 @@
 'use strict';
 
-const { notImplemented } = require('@mushroom/shared');
+function createUserController({ userService }) {
+  return {
+    list: async (req, res) => {
+      res.json(await userService.list(req.validated.query));
+    },
+    create: async (req, res) => {
+      res.status(201).json(await userService.create(req.validated.body));
+    },
+    getById: async (req, res) => {
+      res.json(await userService.getById(req.validated.params.id));
+    },
+    update: async (req, res) => {
+      res.json(await userService.update(req.validated.params.id, req.validated.body));
+    },
+    deactivate: async (req, res) => {
+      res.json(await userService.deactivate(req.validated.params.id, req.user));
+    },
+    activate: async (req, res) => {
+      res.json(await userService.activate(req.validated.params.id));
+    },
+    resetPassword: async (req, res) => {
+      await userService.resetPassword(req.validated.params.id, req.validated.body.newPassword);
+      res.status(204).end();
+    },
+  };
+}
 
-// Toàn bộ /users chỉ dành cho ADMIN (guard đặt ở routes/index.js).
-// TODO: thay từng stub bằng logic thật (controller chỉ nhận/trả request, nghiệp vụ nằm ở services/).
-module.exports = {
-  // GET / — FR-04: danh sách, lọc role/status, tìm kiếm, phân trang
-  list: notImplemented('user.list'),
-  // POST / — FR-04: Admin tạo tài khoản (kể cả Operator, Admin)
-  create: notImplemented('user.create'),
-  // GET /:id — FR-04
-  getById: notImplemented('user.getById'),
-  // PATCH /:id — FR-04: sửa thông tin, gán vai trò
-  update: notImplemented('user.update'),
-  // POST /:id/deactivate — FR-04, BR-15: vô hiệu hóa, không xóa
-  deactivate: notImplemented('user.deactivate'),
-  // POST /:id/activate — FR-04: kích hoạt lại
-  activate: notImplemented('user.activate'),
-  // POST /:id/reset-password — FR-04: Admin đặt lại mật khẩu
-  resetPassword: notImplemented('user.resetPassword'),
-};
+module.exports = { createUserController };

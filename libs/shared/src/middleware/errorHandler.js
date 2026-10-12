@@ -2,6 +2,7 @@
 
 const { AppError } = require('../errors');
 const { ERROR_CODES } = require('../constants');
+const { sqlState } = require('../db');
 
 function body(code, message, req, details) {
   const error = { code, message, requestId: req.id };
@@ -66,7 +67,7 @@ function errorHandler(logger) {
     // Ràng buộc DB là tuyến phòng thủ cuối (xem docs/DATABASE.md). Service nên kiểm tra trước để trả lỗi
     // cụ thể; nếu vẫn lọt xuống DB thì trả 409 thay vì 500. Raw SQL => P2010 kèm SQLSTATE trong meta.code;
     // CHECK/trigger khi dùng Prisma Client => P2004. (Hình dạng `meta` nên được xác nhận khi chạy thật.)
-    const sqlstate = err.code === 'P2010' && err.meta ? String(err.meta.code) : undefined;
+    const sqlstate = sqlState(err);
     if (sqlstate === '23505' || sqlstate === '23503') {
       return res
         .status(409)
