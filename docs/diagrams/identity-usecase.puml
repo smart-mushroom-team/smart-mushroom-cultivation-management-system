@@ -1,0 +1,50 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 130
+skinparam shadowing false
+skinparam ArrowColor #444444
+skinparam packageStyle rectangle
+left to right direction
+title Identity: sơ đồ use case
+
+actor "Khách\n(chưa đăng nhập)" as Guest
+actor "Người dùng\nđã đăng nhập" as User
+actor Customer
+actor Operator
+actor Admin
+Customer --|> User
+Operator --|> User
+Admin --|> User
+
+rectangle "Identity Service" {
+  usecase "Đăng ký (FR-03)" as UCReg
+  usecase "Đăng nhập (FR-02, UC-01)" as UCLogin
+  usecase "Làm mới token (BR-16)" as UCRefresh
+  usecase "Đăng xuất" as UCLogout
+  usecase "Xem / sửa hồ sơ cá nhân (FR-05)" as UCMe
+
+  rectangle "Quản lý người dùng (FR-04, chỉ Admin)" {
+    usecase "Xem danh sách, lọc, tìm kiếm" as UCList
+    usecase "Tạo tài khoản với vai trò bất kỳ" as UCCreate
+    usecase "Sửa họ tên, vai trò, liên hệ" as UCUpdate
+    usecase "Vô hiệu hóa / kích hoạt lại (BR-15)" as UCToggle
+    usecase "Đặt lại mật khẩu" as UCReset
+  }
+}
+
+Guest --> UCReg
+Guest --> UCLogin
+User --> UCRefresh
+User --> UCLogout
+User --> UCMe
+Admin --> UCList
+Admin --> UCCreate
+Admin --> UCUpdate
+Admin --> UCToggle
+Admin --> UCReset
+
+note bottom of UCLogin
+  Customer, Operator, Admin đều
+  đăng nhập qua use case này.
+end note
+@enduml

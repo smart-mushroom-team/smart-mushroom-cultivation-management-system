@@ -1,0 +1,38 @@
+@startuml
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 130
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam ArrowColor #444444
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 260
+title Đăng nhập (FR-02, UC-01)
+actor Client as "Web / Mobile"
+participant Gateway
+participant "Identity\n(auth.service)" as Identity
+database "identity_db" as DB
+
+Client -> Gateway : POST /api/identity/auth/login\n{ email, password }
+Gateway -> Identity : POST /auth/login (route công khai, không kiểm JWT)
+Identity -> DB : SELECT user theo email
+alt không có người dùng
+  Identity -> Identity : băm mật khẩu giả\n(chống dò email qua thời gian phản hồi)
+  Identity --> Client : 401 "Email hoặc mật khẩu không đúng"
+else đang khóa (locked_until > now)
+  Identity --> Client : 423 ACCOUNT_LOCKED (kèm retryAfterSeconds)\nKHÔNG kiểm tra mật khẩu
+else sai mật khẩu
+  Identity -> DB : UPDATE nguyên tử: tăng failed_login_count;\nchạm 5 lần => khóa 5 phút, đặt lại bộ đếm
+  alt vừa bị khóa
+    Identity --> Client : 423 ACCOUNT_LOCKED
+  else chưa chạm ngưỡng
+    Identity --> Client : 401 (cùng thông báo như email không tồn tại)
+  end
+else mật khẩu đúng nhưng status = INACTIVE
+  Identity --> Client : 403 ACCOUNT_DISABLED\n(chỉ báo SAU KHI mật khẩu đúng)
+else hợp lệ
+  Identity -> DB : đặt lại bộ đếm sai, ghi last_login_at
+  Identity -> Identity : ký access JWT (HS256, 1 giờ)\ntạo refresh token ngẫu nhiên 384 bit
+  Identity -> DB : INSERT refresh_tokens (chỉ lưu SHA-256)
+  Identity --> Client : 200 { accessToken, refreshToken, expiresIn, user }
+end
+@enduml
