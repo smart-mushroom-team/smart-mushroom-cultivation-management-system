@@ -3,6 +3,8 @@
 const { createBaseApp, notFoundHandler, errorHandler } = require('@mushroom/shared');
 const { getPrisma } = require('./config/prisma');
 const { createRoutes } = require('./routes');
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./config/swagger');
 
 function createApp({ config, logger }) {
   const app = createBaseApp({ serviceName: 'core', logger });
@@ -17,7 +19,7 @@ function createApp({ config, logger }) {
       res.status(503).json({ status: 'degraded', db: 'down' });
     }
   });
-
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   app.use(createRoutes(config));
   app.use(notFoundHandler);
   app.use(errorHandler(logger));
