@@ -5,16 +5,18 @@ const trayInclude = {
 };
 
 function findMany({ where, skip, take }) {
-  return prisma.$transaction([
-    prisma.tray.findMany({
-      where,
-      skip,
-      take,
-      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
-      include: trayInclude,
-    }),
-    prisma.tray.count({ where }),
-  ]).then(([items, total]) => ({ items, total }));
+  return prisma
+    .$transaction([
+      prisma.tray.findMany({
+        where,
+        skip,
+        take,
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        include: trayInclude,
+      }),
+      prisma.tray.count({ where }),
+    ])
+    .then(([items, total]) => ({ items, total }));
 }
 
 function findById(id) {
