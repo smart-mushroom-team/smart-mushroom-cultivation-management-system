@@ -19,9 +19,7 @@
       },
       "CreateRoomRequest": {
         "type": "object",
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "properties": {
           "name": {
             "type": "string",
@@ -31,10 +29,7 @@
           },
           "status": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "INACTIVE"
-            ],
+            "enum": ["ACTIVE", "INACTIVE"],
             "default": "ACTIVE",
             "example": "ACTIVE"
           }
@@ -46,9 +41,7 @@
       },
       "UpdateRoomRequest": {
         "type": "object",
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "properties": {
           "name": {
             "type": "string",
@@ -63,16 +56,11 @@
       },
       "UpdateRoomStatusRequest": {
         "type": "object",
-        "required": [
-          "status"
-        ],
+        "required": ["status"],
         "properties": {
           "status": {
             "type": "string",
-            "enum": [
-              "ACTIVE",
-              "INACTIVE"
-            ],
+            "enum": ["ACTIVE", "INACTIVE"],
             "example": "INACTIVE"
           }
         },
@@ -85,9 +73,7 @@
   "paths": {
     "/rooms": {
       "get": {
-        "tags": [
-          "Rooms"
-        ],
+        "tags": ["Rooms"],
         "summary": "List rooms",
         "responses": {
           "200": {
@@ -96,9 +82,7 @@
         }
       },
       "post": {
-        "tags": [
-          "Rooms"
-        ],
+        "tags": ["Rooms"],
         "summary": "Create a room",
         "requestBody": {
           "required": true,
@@ -123,9 +107,7 @@
     },
     "/rooms/{id}": {
       "get": {
-        "tags": [
-          "Rooms"
-        ],
+        "tags": ["Rooms"],
         "summary": "Get a room",
         "parameters": [
           {
@@ -147,9 +129,7 @@
         }
       },
       "patch": {
-        "tags": [
-          "Rooms"
-        ],
+        "tags": ["Rooms"],
         "summary": "Update a room",
         "parameters": [
           {
@@ -183,9 +163,7 @@
     },
     "/rooms/{id}/status": {
       "patch": {
-        "tags": [
-          "Rooms"
-        ],
+        "tags": ["Rooms"],
         "summary": "Change room status",
         "parameters": [
           {

@@ -74,6 +74,38 @@ const options = {
             status: 'INACTIVE',
           },
         },
+        CreateTrayRequest: {
+          type: 'object',
+          required: ['trayCode', 'roomId', 'locationRow', 'locationShelf', 'locationSlot'],
+          properties: {
+            trayCode: { type: 'string', minLength: 1, maxLength: 100, example: 'T-001' },
+            roomId: {
+              type: 'string',
+              format: 'uuid',
+              example: '11111111-1111-4111-8111-111111111111',
+            },
+            locationRow: { type: 'integer', minimum: 1, example: 1 },
+            locationShelf: { type: 'integer', minimum: 1, example: 1 },
+            locationSlot: { type: 'integer', minimum: 1, example: 1 },
+          },
+          example: {
+            trayCode: 'T-001',
+            roomId: '11111111-1111-4111-8111-111111111111',
+            locationRow: 1,
+            locationShelf: 1,
+            locationSlot: 1,
+          },
+        },
+        UpdateTrayRequest: {
+          allOf: [{ $ref: '#/components/schemas/CreateTrayRequest' }],
+          example: {
+            trayCode: 'T-001-UPDATED',
+            roomId: '11111111-1111-4111-8111-111111111111',
+            locationRow: 1,
+            locationShelf: 2,
+            locationSlot: 3,
+          },
+        },
       },
     },
   },
