@@ -14,8 +14,7 @@ function createRoutes(config) {
   // Chỉ gọi nội bộ giữa các service, KHÔNG đi qua Gateway
   router.use('/internal', requireServiceKey(config.serviceKey), require('./internal.routes'));
 
-  // Tạm thời mở Room API để kiểm thử CRUD trước khi hoàn tất Identity/Login.
-  router.use('/rooms', require('./room.routes'));
+  router.use('/rooms', auth, require('./room.routes'));
   router.use('/trays', auth, require('./tray.routes'));
   router.use('/packages', auth, require('./package.routes'));
   router.use('/rentals', auth, require('./rental.routes'));

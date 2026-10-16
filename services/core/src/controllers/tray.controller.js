@@ -1,19 +1,48 @@
 'use strict';
 
-const { notImplemented } = require('@mushroom/shared');
+const service = require('../services/tray.service');
+const {
+  idParamSchema,
+  createBodySchema,
+  updateBodySchema,
+  listQuerySchema,
+} = require('../validators/tray.validator');
 
-// TODO: thay từng stub bằng logic thật (controller chỉ nhận/trả request, nghiệp vụ nằm ở services/).
-module.exports = {
-  // GET / — FR-08: lọc roomId, occupancyStatus, tìm theo trayCode, phân trang
-  list: notImplemented('tray.list'),
-  // POST / — FR-08: trayCode duy nhất, vị trí hàng/kệ/ô
-  create: notImplemented('tray.create'),
-  // GET /:id — FR-08
-  getById: notImplemented('tray.getById'),
-  // PATCH /:id — FR-08
-  update: notImplemented('tray.update'),
-  // DELETE /:id — FR-08, BR-15: chỉ xóa khay chưa từng thuộc đơn nào
-  remove: notImplemented('tray.remove'),
-  // POST /:id/complete-cleaning — FR-09, UC-08: CLEANING -> AVAILABLE
-  completeCleaning: notImplemented('tray.completeCleaning'),
-};
+async function create(req, res) {
+  const data = createBodySchema.parse(req.body);
+  res.status(201).json({ data: await service.createTray(data) });
+}
+
+async function list(req, res) {
+  const { page, pageSize, roomId, occupancyStatus, trayCode } = listQuerySchema.parse(req.query);
+  const result = await service.listTrays({
+    page,
+    pageSize,
+    filters: { roomId, occupancyStatus, trayCode },
+  });
+  res.json({ data: result.items, meta: result.meta });
+}
+
+async function getById(req, res) {
+  const { id } = idParamSchema.parse(req.params);
+  res.json({ data: await service.getTray(id) });
+}
+
+async function update(req, res) {
+  const { id } = idParamSchema.parse(req.params);
+  const data = updateBodySchema.parse(req.body);
+  res.json({ data: await service.updateTray(id, data) });
+}
+
+async function remove(req, res) {
+  const { id } = idParamSchema.parse(req.params);
+  await service.deleteTray(id);
+  res.status(204).send();
+}
+
+async function completeCleaning(req, res) {
+  const { id } = idParamSchema.parse(req.params);
+  res.json({ data: await service.completeCleaning(id) });
+}
+
+module.exports = { create, list, getById, update, remove, completeCleaning };
