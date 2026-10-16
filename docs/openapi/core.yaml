@@ -136,7 +136,7 @@ paths:
         - name: occupancyStatus
           in: query
           schema: { $ref: '#/components/schemas/OccupancyStatus' }
-        - name: q
+        - name: trayCode
           in: query
           description: Tìm theo mã khay.
           schema: { type: string }
@@ -962,28 +962,36 @@ components:
         slot: { type: integer, minimum: 1, example: 1, description: Ô. }
     Tray:
       type: object
-      required: [id, trayCode, roomId, location, occupancyStatus]
+      required: [id, trayCode, roomId, locationRow, locationShelf, locationSlot, occupancyStatus]
       properties:
         id: { type: string, format: uuid }
         trayCode: { type: string, example: A1-02-03-01 }
         roomId: { type: string, format: uuid }
-        roomName: { type: string }
-        location: { $ref: '#/components/schemas/TrayLocation' }
+        locationRow: { type: integer, minimum: 1, example: 2, description: HÃ ng. }
+        locationShelf: { type: integer, minimum: 1, example: 3, description: Ká»‡. }
+        locationSlot: { type: integer, minimum: 1, example: 1, description: Ã”. }
         occupancyStatus: { $ref: '#/components/schemas/OccupancyStatus' }
+        rentalCount: { type: integer, minimum: 0, example: 1 }
         createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     TrayInput:
       type: object
-      required: [trayCode, roomId, location]
+      required: [trayCode, roomId, locationRow, locationShelf, locationSlot]
       properties:
-        trayCode: { type: string, minLength: 1, maxLength: 50 }
+        trayCode: { type: string, minLength: 1, maxLength: 100 }
         roomId: { type: string, format: uuid }
-        location: { $ref: '#/components/schemas/TrayLocation' }
+        locationRow: { type: integer, minimum: 1, example: 2 }
+        locationShelf: { type: integer, minimum: 1, example: 3 }
+        locationSlot: { type: integer, minimum: 1, example: 1 }
     TrayUpdate:
       type: object
-      minProperties: 1
+      required: [trayCode, roomId, locationRow, locationShelf, locationSlot]
       properties:
-        trayCode: { type: string, minLength: 1, maxLength: 50 }
-        location: { $ref: '#/components/schemas/TrayLocation' }
+        trayCode: { type: string, minLength: 1, maxLength: 100 }
+        roomId: { type: string, format: uuid }
+        locationRow: { type: integer, minimum: 1, example: 2 }
+        locationShelf: { type: integer, minimum: 1, example: 3 }
+        locationSlot: { type: integer, minimum: 1, example: 1 }
     TrayList:
       allOf:
         - $ref: '#/components/schemas/PageMeta'
