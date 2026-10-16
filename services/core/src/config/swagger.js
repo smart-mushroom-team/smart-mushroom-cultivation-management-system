@@ -106,17 +106,6 @@ const options = {
             locationSlot: 3,
           },
         },
-        UpdateTrayStatusRequest: {
-          type: 'object',
-          required: ['occupancyStatus'],
-          properties: {
-            occupancyStatus: {
-              type: 'string',
-              enum: ['AVAILABLE', 'RESERVED', 'RENTED', 'CLEANING'],
-              example: 'CLEANING',
-            },
-          },
-        },
       },
     },
   },

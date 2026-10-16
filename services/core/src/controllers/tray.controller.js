@@ -5,7 +5,6 @@ const {
   idParamSchema,
   createBodySchema,
   updateBodySchema,
-  statusBodySchema,
   listQuerySchema,
 } = require('../validators/tray.validator');
 
@@ -35,12 +34,6 @@ async function update(req, res) {
   res.json({ data: await service.updateTray(id, data) });
 }
 
-async function changeStatus(req, res) {
-  const { id } = idParamSchema.parse(req.params);
-  const { occupancyStatus } = statusBodySchema.parse(req.body);
-  res.json({ data: await service.changeTrayStatus(id, occupancyStatus) });
-}
-
 async function remove(req, res) {
   const { id } = idParamSchema.parse(req.params);
   await service.deleteTray(id);
@@ -52,4 +45,4 @@ async function completeCleaning(req, res) {
   res.json({ data: await service.completeCleaning(id) });
 }
 
-module.exports = { create, list, getById, update, changeStatus, remove, completeCleaning };
+module.exports = { create, list, getById, update, remove, completeCleaning };

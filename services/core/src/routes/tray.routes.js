@@ -1,10 +1,12 @@
 'use strict';
 
 const { Router } = require('express');
+const { requireRole, ROLES } = require('@mushroom/shared');
 const controller = require('../controllers/tray.controller');
 const asyncHandler = require('../utils/async.handler');
 
 const router = Router();
+const staff = requireRole(ROLES.OPERATOR);
 
 /**
  * @openapi
@@ -65,28 +67,12 @@ const router = Router();
  *     responses:
  *       200: { description: Cleaning completed }
  *       409: { description: Tray is not CLEANING }
- * /trays/{id}/status:
- *   patch:
- *     tags: [Trays]
- *     summary: Change tray occupancy status
- *     description: Allowed lifecycle is AVAILABLE → RESERVED → RENTED → CLEANING → AVAILABLE. RESERVED may return to AVAILABLE when a rental is rejected.
- *     parameters:
- *       - { name: id, in: path, required: true, schema: { $ref: '#/components/schemas/IdParam' } }
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema: { $ref: '#/components/schemas/UpdateTrayStatusRequest' }
- *     responses:
- *       200: { description: Tray status changed }
- *       409: { description: Invalid status transition }
  */
-router.get('/', asyncHandler(controller.list));
-router.post('/', asyncHandler(controller.create));
-router.get('/:id', asyncHandler(controller.getById));
-router.patch('/:id', asyncHandler(controller.update));
-router.patch('/:id/status', asyncHandler(controller.changeStatus));
-router.delete('/:id', asyncHandler(controller.remove));
-router.post('/:id/complete-cleaning', asyncHandler(controller.completeCleaning));
+router.get('/', staff, asyncHandler(controller.list));
+router.post('/', staff, asyncHandler(controller.create));
+router.get('/:id', staff, asyncHandler(controller.getById));
+router.patch('/:id', staff, asyncHandler(controller.update));
+router.delete('/:id', staff, asyncHandler(controller.remove));
+router.post('/:id/complete-cleaning', staff, asyncHandler(controller.completeCleaning));
 
 module.exports = router;

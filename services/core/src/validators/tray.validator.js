@@ -2,10 +2,6 @@ const { z } = require('zod');
 
 const OCCUPANCY_STATUSES = ['AVAILABLE', 'RESERVED', 'RENTED', 'CLEANING'];
 
-const statusBodySchema = z.object({
-  occupancyStatus: z.enum(OCCUPANCY_STATUSES),
-});
-
 const idParamSchema = z.object({
   id: z.string().uuid('ID khay không hợp lệ'),
 });
@@ -54,6 +50,5 @@ module.exports = {
   idParamSchema,
   createBodySchema,
   updateBodySchema,
-  statusBodySchema,
   listQuerySchema,
 };

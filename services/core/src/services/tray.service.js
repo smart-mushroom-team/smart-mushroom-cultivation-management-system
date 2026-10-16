@@ -4,13 +4,6 @@ const repo = require('../repositories/tray.repository');
 
 const fail = (status, code, message) => new AppError(status, code, message);
 
-const ALLOWED_STATUS_TRANSITIONS = {
-  AVAILABLE: ['RESERVED'],
-  RESERVED: ['AVAILABLE', 'RENTED'],
-  RENTED: ['CLEANING'],
-  CLEANING: ['AVAILABLE'],
-};
-
 function toDto(tray) {
   return {
     id: tray.id,
@@ -86,21 +79,6 @@ async function updateTray(id, data) {
   }
 }
 
-async function changeTrayStatus(id, occupancyStatus) {
-  const tray = await getTrayOrThrow(id);
-  const allowedStatuses = ALLOWED_STATUS_TRANSITIONS[tray.occupancyStatus] || [];
-
-  if (!allowedStatuses.includes(occupancyStatus)) {
-    throw fail(
-      409,
-      ERROR_CODES.INVALID_STATE,
-      `Không thể chuyển trạng thái khay từ ${tray.occupancyStatus} sang ${occupancyStatus}`,
-    );
-  }
-
-  return toDto(await repo.update(id, { occupancyStatus }));
-}
-
 async function deleteTray(id) {
   const tray = await getTrayOrThrow(id);
   if (tray._count.rentalTrays > 0) {
@@ -138,7 +116,6 @@ module.exports = {
   createTray,
   getTray,
   updateTray,
-  changeTrayStatus,
   deleteTray,
   completeCleaning,
 };
