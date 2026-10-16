@@ -962,8 +962,7 @@ components:
         slot: { type: integer, minimum: 1, example: 1, description: Ô. }
     Tray:
       type: object
-      required:
-        [id, trayCode, roomId, locationRow, locationShelf, locationSlot, occupancyStatus]
+      required: [id, trayCode, roomId, locationRow, locationShelf, locationSlot, occupancyStatus]
       properties:
         id: { type: string, format: uuid }
         trayCode: { type: string, example: A1-02-03-01 }
