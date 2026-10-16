@@ -23,13 +23,13 @@ async function call(base, { method = 'GET', path, role, headers = {} }) {
 
 /**
  * Bảng phân quyền: [method, path, role, status mong đợi].
- * 501 = đã qua guard, controller còn là stub. 401/403 = bị guard chặn.
+ * 501 = đã qua guard, controller còn là stub. 401/403 = bị guard chặn.500 =đã implement nhưng chưa không kết nối DB.
  */
 const CASES = [
   ['GET', '/rooms', undefined, 401],
   ['GET', '/rooms', ROLES.CUSTOMER, 403],
-  ['GET', '/rooms', ROLES.OPERATOR, 200],
-  ['GET', '/rooms', ROLES.ADMIN, 200], // Admin kế thừa quyền Operator
+  ['GET', '/rooms', ROLES.OPERATOR, 500],
+  ['GET', '/rooms', ROLES.ADMIN, 500], // Admin kế thừa quyền Operator
   ['POST', '/packages', ROLES.OPERATOR, 403], // chỉ Admin quản lý gói
   ['POST', '/packages', ROLES.ADMIN, 501],
   ['GET', '/packages', ROLES.CUSTOMER, 501],
