@@ -16,7 +16,8 @@ function createRoutes(config) {
 
   // Tạm thời mở Room API để kiểm thử CRUD trước khi hoàn tất Identity/Login.
   router.use('/rooms', require('./room.routes'));
-  router.use('/trays', auth, require('./tray.routes'));
+  // Tạm thời mở Tray API để kiểm thử CRUD trước khi hoàn tất Identity/Login.
+  router.use('/trays', require('./tray.routes'));
   router.use('/packages', auth, require('./package.routes'));
   router.use('/rentals', auth, require('./rental.routes'));
   router.use('/transactions', auth, require('./transaction.routes'));
