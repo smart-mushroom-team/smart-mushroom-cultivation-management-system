@@ -1,0 +1,13 @@
+**/node_modules
+**/generated
+**/coverage
+.git
+.github
+.env
+.env.*
+!.env.example
+secrets
+docs
+infra
+*.md
+*.zip

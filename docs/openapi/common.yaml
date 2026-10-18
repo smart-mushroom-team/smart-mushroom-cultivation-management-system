@@ -1,0 +1,84 @@
+# Thành phần dùng chung cho identity.yaml / core.yaml / monitoring.yaml.
+# Không phải một tài liệu OpenAPI độc lập; các file kia tham chiếu qua $ref.
+components:
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      description: Format lỗi chuẩn của MỌI service (xem libs/shared/src/middleware/errorHandler.js).
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Mã lỗi ổn định để client xử lý (không dịch).
+              example: VALIDATION_ERROR
+            message:
+              type: string
+              description: Mô tả cho con người đọc.
+              example: Dữ liệu không hợp lệ
+            details:
+              description: Thông tin thêm (vd danh sách trường sai khi 422).
+              nullable: true
+            requestId:
+              type: string
+              description: Mã truy vết, khớp header X-Request-Id và log.
+              example: 6f1c3b0e-6c2a-4d2e-9a43-4f1d9f5b7a10
+    PageMeta:
+      type: object
+      required: [page, limit, total]
+      properties:
+        page: { type: integer, minimum: 1, example: 1 }
+        limit: { type: integer, minimum: 1, maximum: 100, example: 20 }
+        total: { type: integer, minimum: 0, example: 57 }
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: Trang (bắt đầu từ 1).
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      description: Số bản ghi mỗi trang (tối đa 100).
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    BadRequest:
+      description: Yêu cầu sai cú pháp (vd body không phải JSON hợp lệ). Mã `BAD_REQUEST`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Thiếu/sai/hết hạn token (`UNAUTHORIZED`, `TOKEN_EXPIRED`) hoặc sai khóa.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Đã đăng nhập nhưng không đủ quyền (`FORBIDDEN`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Không tìm thấy tài nguyên, hoặc người dùng không được phép biết nó tồn tại (`NOT_FOUND`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Xung đột dữ liệu hoặc sai trạng thái (`CONFLICT`, `INVALID_STATE`, ...). Xem mô tả từng endpoint.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Dữ liệu không hợp lệ (`VALIDATION_ERROR`), `details` liệt kê từng trường sai.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ServiceUnavailable:
+      description: Service phía sau chưa sẵn sàng hoặc không xác minh được quyền (`SERVICE_UNAVAILABLE`, `ACCESS_CHECK_UNAVAILABLE`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

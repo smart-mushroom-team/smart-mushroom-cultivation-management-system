@@ -1,0 +1,1359 @@
+openapi: 3.0.3
+info:
+  title: Core Service API
+  version: 0.1.0-draft
+  description: |
+    Nghiệp vụ lõi: phòng, khay, gói thuê, đơn thuê, đợt nuôi, thu hoạch, thông báo (kể cả đẩy FCM).
+    **BẢN NHÁP** để nhóm và web/mobile thống nhất hợp đồng API.
+
+    - Qua Gateway: `http://localhost:8080/api/core/...` (cần `Authorization: Bearer <JWT>`).
+    - Vai trò: `ADMIN` kế thừa quyền `OPERATOR`. "STAFF" trong tài liệu = `OPERATOR` hoặc `ADMIN`.
+    - Tiền tệ: VND, số nguyên. Ngày: `YYYY-MM-DD` theo múi giờ nghiệp vụ UTC+7 (Asia/Ho_Chi_Minh). Thời điểm: ISO 8601.
+    - Phân trang: `?page=1&limit=20` → `{ items, page, limit, total }`.
+    - Lỗi: `{ "error": { "code", "message", "details?", "requestId" } }`.
+    - Các endpoint `/internal/**` **chỉ dùng giữa Core và Monitoring** (header `X-Service-Key`), Gateway không định tuyến ra ngoài.
+
+    **Vòng đời đơn thuê** (BR-04): `PAID → ACTIVE → EXPIRED → COMPLETED`, hoặc `PAID → REJECTED`.
+    **Giai đoạn đợt nuôi** (BR-06): `SEEDING → INCUBATING → FRUITING → READY` (chỉ tiến lên từng bước).
+servers:
+  - url: http://localhost:8080/api/core
+    description: Qua API Gateway (dùng cái này)
+  - url: http://localhost:3002
+    description: Gọi thẳng Core (chỉ để debug)
+tags:
+  - name: Rooms
+  - name: Trays
+  - name: Packages
+  - name: Rentals
+  - name: Transactions
+  - name: MyTrays
+    description: Màn hình "Khay của tôi" cho khách hàng
+  - name: Cycles
+    description: Đợt nuôi, tiến độ, thu hoạch
+  - name: Notifications
+  - name: DeviceTokens
+    description: Đăng ký FCM token để nhận push (Firebase)
+  - name: Dashboard
+  - name: Demo
+    description: Chế độ demo (FR-26), chỉ ADMIN
+  - name: Internal
+    description: Chỉ Core <-> Monitoring, KHÔNG qua Gateway
+security:
+  - bearerAuth: []
+paths:
+  # ===================== ROOMS =====================
+  /rooms:
+    get:
+      tags: [Rooms]
+      operationId: listRooms
+      summary: Danh sách phòng (FR-07) — STAFF
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/RoomStatus' }
+      responses:
+        '200':
+          description: Danh sách phòng kèm số khay.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Room' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Rooms]
+      operationId: createRoom
+      summary: Tạo phòng (FR-07) — STAFF
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoomInput' }
+      responses:
+        '201':
+          description: Phòng mới (mặc định ACTIVE).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Room' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /rooms/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Rooms]
+      operationId: getRoom
+      summary: Chi tiết phòng — STAFF
+      responses:
+        '200':
+          description: Phòng.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Room' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Rooms]
+      operationId: updateRoom
+      summary: Sửa tên / đổi trạng thái phòng (FR-07) — STAFF
+      description: Không cho chuyển sang `INACTIVE` khi phòng còn khay `RESERVED` hoặc `RENTED` (`INVALID_STATE`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RoomUpdate' }
+      responses:
+        '200':
+          description: Phòng sau cập nhật.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Room' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # ===================== TRAYS =====================
+  /trays:
+    get:
+      tags: [Trays]
+      operationId: listTrays
+      summary: Danh sách khay (FR-08) — STAFF
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: roomId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: occupancyStatus
+          in: query
+          schema: { $ref: '#/components/schemas/OccupancyStatus' }
+        - name: trayCode
+          in: query
+          description: Tìm theo mã khay.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Trang khay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrayList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Trays]
+      operationId: createTray
+      summary: Tạo khay (FR-08) — STAFF
+      description: Mã khay duy nhất toàn hệ thống; vị trí (hàng/kệ/ô) duy nhất trong phòng. Khay mới `AVAILABLE`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TrayInput' }
+      responses:
+        '201':
+          description: Khay mới.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tray' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /trays/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Trays]
+      operationId: getTray
+      summary: Chi tiết khay — STAFF
+      responses:
+        '200':
+          description: Khay.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tray' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Trays]
+      operationId: updateTray
+      summary: Sửa mã/vị trí khay (FR-08) — STAFF
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TrayUpdate' }
+      responses:
+        '200':
+          description: Khay sau cập nhật.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tray' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Trays]
+      operationId: deleteTray
+      summary: Xóa khay (FR-08, BR-15) — STAFF
+      description: Chỉ xóa được khay **chưa từng** thuộc đơn nào; ngược lại trả `INVALID_STATE`.
+      responses:
+        '204': { description: Đã xóa. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /trays/{id}/complete-cleaning:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Trays]
+      operationId: completeTrayCleaning
+      summary: Xác nhận đã vệ sinh khay (FR-09, UC-08) — STAFF
+      description: Chuyển `CLEANING → AVAILABLE`. Khay không ở `CLEANING` thì `INVALID_STATE`.
+      responses:
+        '200':
+          description: Khay đã sẵn sàng.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tray' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ===================== PACKAGES =====================
+  /packages:
+    get:
+      tags: [Packages]
+      operationId: listPackages
+      summary: Danh sách gói thuê (FR-10, FR-11)
+      description: |
+        - `CUSTOMER`: chỉ thấy gói đang bật.
+        - STAFF: thấy tất cả, lọc bằng `isActive`.
+        Kèm `availableTrayCount` = số khay `AVAILABLE` trong các phòng `ACTIVE` (dùng chung cho mọi gói).
+      parameters:
+        - name: isActive
+          in: query
+          description: Chỉ có tác dụng với STAFF.
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Danh sách gói.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PackageList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Packages]
+      operationId: createPackage
+      summary: Tạo gói thuê (FR-10) — ADMIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PackageInput' }
+      responses:
+        '201':
+          description: Gói mới.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Package' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /packages/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Packages]
+      operationId: getPackage
+      summary: Chi tiết gói
+      responses:
+        '200':
+          description: Gói.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Package' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Packages]
+      operationId: updatePackage
+      summary: Sửa gói / bật tắt (FR-10) — ADMIN
+      description: Đổi giá hoặc số ngày **không** ảnh hưởng đơn đã tạo (đơn đã chụp lại giá và thời hạn).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PackageUpdate' }
+      responses:
+        '200':
+          description: Gói sau cập nhật.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Package' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # ===================== RENTALS =====================
+  /rentals:
+    post:
+      tags: [Rentals]
+      operationId: createRental
+      summary: Đặt thuê khay và thanh toán mô phỏng (FR-12, UC-02) — CUSTOMER
+      description: |
+        Trong **một giao dịch DB**: khóa các khay `AVAILABLE` (SELECT ... FOR UPDATE SKIP LOCKED, BR-01),
+        chuyển sang `RESERVED`, tạo đơn `PAID` và giao dịch thanh toán mô phỏng.
+        Hai khách đặt cùng lúc không bao giờ nhận trùng khay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRentalRequest' }
+      responses:
+        '201':
+          description: Đơn đã tạo ở trạng thái `PAID`, chờ Operator xác nhận.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RentalDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Gói không tồn tại hoặc đang tắt (`NOT_FOUND`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '402':
+          description: Thanh toán mô phỏng thất bại (`PAYMENT_FAILED`). Khay không bị giữ.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Không đủ khay trống (`INSUFFICIENT_TRAYS`); `details.available` cho biết số khay còn lại.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    get:
+      tags: [Rentals]
+      operationId: listRentals
+      summary: Danh sách đơn thuê (FR-15)
+      description: |
+        `CUSTOMER` chỉ thấy đơn của mình (BR-02). STAFF thấy tất cả.
+        Màn hình "đơn chờ xác nhận" của Operator: `?status=PAID&sort=createdAt:asc`.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/RentalStatus' }
+        - name: customerId
+          in: query
+          description: Chỉ có tác dụng với STAFF.
+          schema: { type: string, format: uuid }
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: ['createdAt:desc', 'createdAt:asc', 'endDate:asc']
+            default: 'createdAt:desc'
+      responses:
+        '200':
+          description: Trang đơn thuê.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RentalList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /rentals/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Rentals]
+      operationId: getRental
+      summary: Chi tiết đơn thuê (FR-15)
+      description: Kèm danh sách khay và giao dịch. Customer xem đơn của người khác nhận `404`.
+      responses:
+        '200':
+          description: Đơn thuê.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RentalDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /rentals/{id}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Rentals]
+      operationId: confirmRental
+      summary: Xác nhận đơn (FR-13, UC-03) — STAFF
+      description: |
+        Trong một giao dịch: `PAID → ACTIVE`, `startDate = hôm nay`, `endDate = startDate + durationDays` (BR-05),
+        khay `RESERVED → RENTED`, tạo đợt nuôi đầu tiên cho từng khay (`SEEDING`), thông báo cho khách (kể cả FCM push).
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmRentalRequest' }
+      responses:
+        '200':
+          description: Đơn `ACTIVE`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RentalDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Đơn không ở trạng thái `PAID` (`INVALID_STATE`), ví dụ đã được người khác xử lý.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /rentals/{id}/reject:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Rentals]
+      operationId: rejectRental
+      summary: Từ chối đơn (FR-14) — STAFF
+      description: Lý do bắt buộc. `PAID → REJECTED`, khay về `AVAILABLE`, giao dịch hoàn tiền mô phỏng, thông báo cho khách.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RejectRentalRequest' }
+      responses:
+        '200':
+          description: Đơn `REJECTED`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RentalDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # ===================== TRANSACTIONS =====================
+  /transactions:
+    get:
+      tags: [Transactions]
+      operationId: listTransactions
+      summary: Lịch sử giao dịch (FR-15)
+      description: Customer chỉ thấy giao dịch của mình.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: rentalId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Trang giao dịch.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ===================== MY TRAYS =====================
+  /my-trays:
+    get:
+      tags: [MyTrays]
+      operationId: listMyTrays
+      summary: Khay của tôi (FR-17, UC-04) — CUSTOMER
+      description: Khay thuộc các đơn `ACTIVE` của khách. Kèm `roomId` để gọi Monitoring xem camera/môi trường.
+      responses:
+        '200':
+          description: Danh sách khay.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/MyTray' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /my-trays/{trayId}:
+    parameters:
+      - name: trayId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [MyTrays]
+      operationId: getMyTray
+      summary: Chi tiết khay của tôi (FR-17) — CUSTOMER
+      description: Khay không thuộc đơn `ACTIVE` của khách thì `404` (BR-02).
+      responses:
+        '200':
+          description: Chi tiết khay và lịch sử các đợt nuôi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyTrayDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ===================== CYCLES =====================
+  /cycles:
+    get:
+      tags: [Cycles]
+      operationId: listCycles
+      summary: Danh sách đợt nuôi — STAFF
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: rentalId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: trayId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/CycleStatus' }
+        - name: stage
+          in: query
+          schema: { $ref: '#/components/schemas/CycleStage' }
+      responses:
+        '200':
+          description: Trang đợt nuôi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CycleList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Cycles]
+      operationId: createCycle
+      summary: Bắt đầu đợt nuôi mới (FR-21, mức S) — STAFF
+      description: Khay phải thuộc đơn `ACTIVE` còn hạn và không có đợt `GROWING` nào (BR-06).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCycleRequest' }
+      responses:
+        '201':
+          description: Đợt nuôi mới (`SEEDING`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CycleDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /cycles/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Cycles]
+      operationId: getCycle
+      summary: Chi tiết đợt nuôi kèm nhật ký tiến độ
+      description: STAFF xem tất cả; Customer chỉ xem đợt của khay thuộc đơn của mình (`404` nếu không phải).
+      responses:
+        '200':
+          description: Đợt nuôi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CycleDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /cycles/{id}/progress:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Cycles]
+      operationId: updateCycleProgress
+      summary: Cập nhật tiến độ (FR-18, UC-06) — STAFF
+      description: |
+        Đổi giai đoạn chỉ được **tiến lên đúng một bước** (BR-06); lùi hoặc nhảy bước trả `INVALID_STATE`.
+        Có thể cập nhật kèm giống nấm, ngày thu hoạch dự kiến, ghi chú. Mỗi lần đổi giai đoạn sinh thông báo cho khách.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProgressRequest' }
+      responses:
+        '200':
+          description: Đợt nuôi sau cập nhật.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CycleDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /cycles/{id}/harvest:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Cycles]
+      operationId: harvestCycle
+      summary: Ghi nhận thu hoạch (FR-19, UC-07) — STAFF
+      description: Chỉ khi giai đoạn là `FRUITING` hoặc `READY`; đợt `GROWING → HARVESTED`. Thông báo cho khách.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HarvestRequest' }
+      responses:
+        '200':
+          description: Đợt nuôi `HARVESTED`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CycleDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Chưa tới giai đoạn thu hoạch hoặc đợt không còn `GROWING` (`INVALID_STATE`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /cycles/{id}/discard:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Cycles]
+      operationId: discardCycle
+      summary: Loại bỏ đợt nuôi hỏng (FR-20) — STAFF
+      description: Lý do bắt buộc. Dùng được ở mọi giai đoạn. `GROWING → DISCARDED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiscardRequest' }
+      responses:
+        '200':
+          description: Đợt nuôi `DISCARDED`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CycleDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # ===================== NOTIFICATIONS =====================
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: Thông báo của tôi (FR-42)
+      description: Gồm thông báo gửi riêng cho tôi và (nếu là STAFF) thông báo gửi cho nhóm STAFF. Mới nhất trước.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: unreadOnly
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Trang thông báo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      operationId: getUnreadCount
+      summary: Số thông báo chưa đọc (huy hiệu trên app)
+      responses:
+        '200':
+          description: Số chưa đọc.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer, minimum: 0, example: 3 }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      operationId: markAllNotificationsRead
+      summary: Đánh dấu tất cả đã đọc
+      responses:
+        '204': { description: Đã đánh dấu. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /notifications/{id}/read:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    post:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Đánh dấu một thông báo đã đọc
+      description: Trạng thái đã đọc tính riêng từng người, nên thông báo nhóm STAFF không bị mất với người khác.
+      responses:
+        '204': { description: Đã đánh dấu. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ===================== DEVICE TOKENS (FCM) =====================
+  /device-tokens:
+    post:
+      tags: [DeviceTokens]
+      operationId: registerDeviceToken
+      summary: Đăng ký FCM token của thiết bị (FR-43)
+      description: |
+        App gọi sau khi đăng nhập và mỗi khi FCM làm mới token. Idempotent: token đã có thì cập nhật chủ sở hữu
+        thành người đang đăng nhập.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterDeviceTokenRequest' }
+      responses:
+        '204': { description: Đã lưu. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [DeviceTokens]
+      operationId: unregisterDeviceToken
+      summary: Hủy đăng ký FCM token (gọi khi đăng xuất)
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Đã xóa (kể cả khi token không tồn tại). }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ===================== DASHBOARD =====================
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      operationId: getDashboardSummary
+      summary: Tổng quan cho trang dashboard (FR-44, mức S) — STAFF
+      description: Số liệu của Core. Tình trạng thiết bị lấy từ Monitoring (`GET /devices/summary`), web gọi riêng.
+      responses:
+        '200':
+          description: Tổng quan.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ===================== DEMO =====================
+  /demo/state:
+    get:
+      tags: [Demo]
+      operationId: getDemoState
+      summary: Trạng thái chế độ demo (FR-26) — ADMIN
+      responses:
+        '200':
+          description: Trạng thái.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DemoState' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /demo/date:
+    put:
+      tags: [Demo]
+      operationId: setDemoDate
+      summary: Đặt hoặc xóa ngày giả lập (FR-26) — ADMIN
+      description: Mọi logic "hôm nay" (hết hạn, nhắc hạn) dùng ngày này khi có. `date = null` để quay về ngày thật.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetDemoDateRequest' }
+      responses:
+        '200':
+          description: Trạng thái mới.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DemoState' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Không phải ADMIN, hoặc chế độ demo đang tắt (`DEMO_MODE_DISABLED`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /demo/run-expiry-job:
+    post:
+      tags: [Demo]
+      operationId: runExpiryJob
+      summary: Chạy Rental Expiry Job ngay (FR-26) — ADMIN
+      description: Chạy job hết hạn đơn thủ công, idempotent. Trả tóm tắt đã xử lý.
+      responses:
+        '200':
+          description: Kết quả chạy job.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExpiryJobResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Không phải ADMIN, hoặc chế độ demo đang tắt (`DEMO_MODE_DISABLED`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ===================== INTERNAL =====================
+  /internal/rooms/{roomId}/access:
+    get:
+      tags: [Internal]
+      operationId: checkRoomAccess
+      summary: Monitoring hỏi quyền xem phòng của khách (BR-08)
+      description: |
+        **Chỉ Monitoring gọi**, bằng `X-Service-Key`. Gateway không định tuyến đường dẫn này ra ngoài.
+        `allowed = true` khi khách có ít nhất một khay trong phòng thuộc đơn `ACTIVE` mà `hôm nay <= endDate`
+        (dùng ngày giả lập khi bật demo). Monitoring không cache kết quả.
+      security:
+        - serviceKey: []
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: customerId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Quyết định cho phép hoặc từ chối.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomAccessDecision' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /internal/alerts:
+    post:
+      tags: [Internal]
+      operationId: createAlert
+      summary: Monitoring yêu cầu tạo cảnh báo cho STAFF (FR-36, FR-38)
+      description: |
+        **Chỉ Monitoring gọi**, bằng `X-Service-Key`. Idempotent theo `dedupeKey` (BR-14): gửi lại cùng khóa
+        không tạo thông báo trùng (trả `created = false`). Core lưu thông báo cho nhóm STAFF rồi đẩy FCM.
+      security:
+        - serviceKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAlertRequest' }
+      responses:
+        '200':
+          description: Đã tồn tại (trùng `dedupeKey`), không tạo mới.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateAlertResponse' }
+        '201':
+          description: Đã tạo thông báo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreateAlertResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    serviceKey:
+      type: apiKey
+      in: header
+      name: X-Service-Key
+      description: Khóa dịch vụ cho endpoint `/internal` (không dùng bởi web/mobile).
+  parameters:
+    Page: { $ref: './common.yaml#/components/parameters/Page' }
+    Limit: { $ref: './common.yaml#/components/parameters/Limit' }
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest: { $ref: './common.yaml#/components/responses/BadRequest' }
+    Unauthorized: { $ref: './common.yaml#/components/responses/Unauthorized' }
+    Forbidden: { $ref: './common.yaml#/components/responses/Forbidden' }
+    NotFound: { $ref: './common.yaml#/components/responses/NotFound' }
+    Conflict: { $ref: './common.yaml#/components/responses/Conflict' }
+    ValidationError: { $ref: './common.yaml#/components/responses/ValidationError' }
+  schemas:
+    Error: { $ref: './common.yaml#/components/schemas/Error' }
+    PageMeta: { $ref: './common.yaml#/components/schemas/PageMeta' }
+
+    # ---------- Enum ----------
+    RoomStatus: { type: string, enum: [ACTIVE, INACTIVE] }
+    OccupancyStatus: { type: string, enum: [AVAILABLE, RESERVED, RENTED, CLEANING] }
+    RentalStatus: { type: string, enum: [PAID, ACTIVE, EXPIRED, COMPLETED, REJECTED] }
+    TransactionStatus: { type: string, enum: [PAID, REFUNDED] }
+    CycleStage: { type: string, enum: [SEEDING, INCUBATING, FRUITING, READY] }
+    CycleStatus: { type: string, enum: [GROWING, HARVESTED, DISCARDED] }
+    Handover:
+      type: string
+      enum: [ON_SITE, DELIVERY]
+      description: Nhận tại trại hoặc giao hàng.
+    NotificationType:
+      type: string
+      enum:
+        - RENTAL_CONFIRMED
+        - RENTAL_REJECTED
+        - TRAY_ACTIVATED
+        - STAGE_CHANGED
+        - CYCLE_HARVESTED
+        - CYCLE_DISCARDED
+        - RENTAL_EXPIRING
+        - DEVICE_OFFLINE
+        - THRESHOLD_BREACH
+        - RENTAL_EXPIRED_WITH_ACTIVE_CYCLE
+    DevicePlatform: { type: string, enum: [ANDROID, IOS, WEB] }
+
+    # ---------- Phòng / khay / gói ----------
+    Room:
+      type: object
+      required: [id, name, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: Phòng ủ A1 }
+        status: { $ref: '#/components/schemas/RoomStatus' }
+        trayCount: { type: integer, example: 24, description: Tổng số khay trong phòng. }
+        availableTrayCount: { type: integer, example: 10 }
+        createdAt: { type: string, format: date-time }
+    RoomInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+    RoomUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        status: { $ref: '#/components/schemas/RoomStatus' }
+    TrayLocation:
+      type: object
+      required: [row, shelf, slot]
+      properties:
+        row: { type: integer, minimum: 1, example: 2, description: Hàng. }
+        shelf: { type: integer, minimum: 1, example: 3, description: Kệ. }
+        slot: { type: integer, minimum: 1, example: 1, description: Ô. }
+    Tray:
+      type: object
+      required: [id, trayCode, roomId, locationRow, locationShelf, locationSlot, occupancyStatus]
+      properties:
+        id: { type: string, format: uuid }
+        trayCode: { type: string, example: A1-02-03-01 }
+        roomId: { type: string, format: uuid }
+        locationRow: { type: integer, minimum: 1, example: 2, description: HÃ ng. }
+        locationShelf: { type: integer, minimum: 1, example: 3, description: Ká»‡. }
+        locationSlot: { type: integer, minimum: 1, example: 1, description: Ã”. }
+        occupancyStatus: { $ref: '#/components/schemas/OccupancyStatus' }
+        rentalCount: { type: integer, minimum: 0, example: 1 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    TrayInput:
+      type: object
+      required: [trayCode, roomId, locationRow, locationShelf, locationSlot]
+      properties:
+        trayCode: { type: string, minLength: 1, maxLength: 100 }
+        roomId: { type: string, format: uuid }
+        locationRow: { type: integer, minimum: 1, example: 2 }
+        locationShelf: { type: integer, minimum: 1, example: 3 }
+        locationSlot: { type: integer, minimum: 1, example: 1 }
+    TrayUpdate:
+      type: object
+      required: [trayCode, roomId, locationRow, locationShelf, locationSlot]
+      properties:
+        trayCode: { type: string, minLength: 1, maxLength: 100 }
+        roomId: { type: string, format: uuid }
+        locationRow: { type: integer, minimum: 1, example: 2 }
+        locationShelf: { type: integer, minimum: 1, example: 3 }
+        locationSlot: { type: integer, minimum: 1, example: 1 }
+    TrayList:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/Tray' }
+    Package:
+      type: object
+      required: [id, name, durationDays, pricePerTray, isActive]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: Gói 30 ngày }
+        durationDays: { type: integer, minimum: 1, example: 30 }
+        pricePerTray: { type: integer, minimum: 0, example: 150000, description: VND mỗi khay. }
+        isActive: { type: boolean }
+    PackageInput:
+      type: object
+      required: [name, durationDays, pricePerTray]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        durationDays: { type: integer, minimum: 1 }
+        pricePerTray: { type: integer, minimum: 0 }
+        isActive: { type: boolean, default: true }
+    PackageUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        durationDays: { type: integer, minimum: 1 }
+        pricePerTray: { type: integer, minimum: 0 }
+        isActive: { type: boolean }
+    PackageList:
+      type: object
+      required: [items, availableTrayCount]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Package' }
+        availableTrayCount:
+          type: integer
+          example: 18
+          description: Số khay AVAILABLE trong các phòng ACTIVE.
+
+    # ---------- Đơn thuê ----------
+    CreateRentalRequest:
+      type: object
+      required: [packageId, trayCount]
+      properties:
+        packageId: { type: string, format: uuid }
+        trayCount: { type: integer, minimum: 1, maximum: 50, example: 2 }
+    ConfirmRentalRequest:
+      type: object
+      description: Tùy chọn; áp dụng cho đợt nuôi đầu tiên của mọi khay trong đơn.
+      properties:
+        variety: { type: string, nullable: true, example: Nấm sò trắng }
+        expectedHarvestDate: { type: string, format: date, nullable: true }
+        note: { type: string, nullable: true }
+    RejectRentalRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 500, example: Hết nguyên liệu giống }
+    Rental:
+      type: object
+      required:
+        [
+          id,
+          customerId,
+          customerName,
+          durationDays,
+          pricePerTray,
+          trayCount,
+          totalAmount,
+          status,
+          createdAt,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        customerId: { type: string, format: uuid }
+        customerName: { type: string }
+        packageId: { type: string, format: uuid }
+        packageName: { type: string, example: Gói 30 ngày }
+        durationDays: { type: integer, description: Chụp lại từ gói lúc đặt. }
+        pricePerTray: { type: integer, description: Chụp lại từ gói lúc đặt. }
+        trayCount: { type: integer }
+        totalAmount: { type: integer, example: 300000 }
+        status: { $ref: '#/components/schemas/RentalStatus' }
+        startDate:
+          { type: string, format: date, nullable: true, description: Đặt khi Operator xác nhận. }
+        endDate: { type: string, format: date, nullable: true }
+        processedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Thời điểm Operator xác nhận hoặc từ chối.
+        rejectReason: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    RentalDetail:
+      allOf:
+        - $ref: '#/components/schemas/Rental'
+        - type: object
+          properties:
+            trays:
+              type: array
+              items: { $ref: '#/components/schemas/Tray' }
+            transactions:
+              type: array
+              items: { $ref: '#/components/schemas/Transaction' }
+    RentalList:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/Rental' }
+    Transaction:
+      type: object
+      required: [id, rentalId, amount, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        rentalId: { type: string, format: uuid }
+        amount: { type: integer, example: 300000 }
+        status: { $ref: '#/components/schemas/TransactionStatus' }
+        createdAt: { type: string, format: date-time }
+    TransactionList:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/Transaction' }
+
+    # ---------- Đợt nuôi ----------
+    CycleSummary:
+      type: object
+      required: [id, stage, status]
+      properties:
+        id: { type: string, format: uuid }
+        stage: { $ref: '#/components/schemas/CycleStage' }
+        status: { $ref: '#/components/schemas/CycleStatus' }
+        variety: { type: string, nullable: true }
+        startDate: { type: string, format: date }
+        expectedHarvestDate: { type: string, format: date, nullable: true }
+    Cycle:
+      allOf:
+        - $ref: '#/components/schemas/CycleSummary'
+        - type: object
+          required: [rentalId, trayId]
+          properties:
+            rentalId: { type: string, format: uuid }
+            trayId: { type: string, format: uuid }
+            trayCode: { type: string }
+            harvestedAt: { type: string, format: date, nullable: true }
+            weightKg: { type: number, format: double, nullable: true, example: 1.8 }
+            handover: { allOf: [{ $ref: '#/components/schemas/Handover' }], nullable: true }
+            discardReason: { type: string, nullable: true }
+            note: { type: string, nullable: true }
+    ProgressLog:
+      type: object
+      required: [id, toStage, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        fromStage: { allOf: [{ $ref: '#/components/schemas/CycleStage' }], nullable: true }
+        toStage: { $ref: '#/components/schemas/CycleStage' }
+        note: { type: string, nullable: true }
+        createdBy: { type: string, format: uuid, description: Mã người dùng của Operator. }
+        createdAt: { type: string, format: date-time }
+    CycleDetail:
+      allOf:
+        - $ref: '#/components/schemas/Cycle'
+        - type: object
+          properties:
+            progressLogs:
+              type: array
+              items: { $ref: '#/components/schemas/ProgressLog' }
+    CycleList:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/Cycle' }
+    CreateCycleRequest:
+      type: object
+      required: [rentalId, trayId]
+      properties:
+        rentalId: { type: string, format: uuid }
+        trayId: { type: string, format: uuid }
+        variety: { type: string, nullable: true }
+        expectedHarvestDate: { type: string, format: date, nullable: true }
+    UpdateProgressRequest:
+      type: object
+      minProperties: 1
+      properties:
+        stage:
+          allOf: [{ $ref: '#/components/schemas/CycleStage' }]
+          description: Phải là giai đoạn liền sau giai đoạn hiện tại.
+        variety: { type: string, nullable: true }
+        expectedHarvestDate: { type: string, format: date, nullable: true }
+        note: { type: string, nullable: true }
+    HarvestRequest:
+      type: object
+      required: [harvestedAt, weightKg, handover]
+      properties:
+        harvestedAt: { type: string, format: date, example: '2026-10-20' }
+        weightKg: { type: number, format: double, exclusiveMinimum: true, minimum: 0, example: 2.4 }
+        handover: { $ref: '#/components/schemas/Handover' }
+        note: { type: string, nullable: true }
+    DiscardRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 500, example: Nhiễm nấm mốc xanh }
+
+    # ---------- Khay của tôi ----------
+    MyTray:
+      type: object
+      required: [trayId, trayCode, roomId, rentalId, rentalEndDate]
+      properties:
+        trayId: { type: string, format: uuid }
+        trayCode: { type: string }
+        roomId:
+          { type: string, format: uuid, description: Dùng để gọi Monitoring (camera/môi trường). }
+        roomName: { type: string }
+        location: { $ref: '#/components/schemas/TrayLocation' }
+        rentalId: { type: string, format: uuid }
+        rentalEndDate: { type: string, format: date }
+        daysRemaining: { type: integer, example: 12 }
+        currentCycle:
+          allOf: [{ $ref: '#/components/schemas/CycleSummary' }]
+          nullable: true
+    MyTrayDetail:
+      allOf:
+        - $ref: '#/components/schemas/MyTray'
+        - type: object
+          properties:
+            cycleHistory:
+              type: array
+              description: Các đợt nuôi đã kết thúc (thu hoạch hoặc loại bỏ) của khay trong đơn này.
+              items: { $ref: '#/components/schemas/Cycle' }
+
+    # ---------- Thông báo ----------
+    Notification:
+      type: object
+      required: [id, type, title, content, isRead, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/NotificationType' }
+        title: { type: string, example: Đơn thuê đã được xác nhận }
+        content: { type: string }
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Dữ liệu để app điều hướng (vd rentalId, trayId, roomId).
+        isRead: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    NotificationList:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/Notification' }
+    RegisterDeviceTokenRequest:
+      type: object
+      required: [token, platform]
+      properties:
+        token: { type: string, description: FCM registration token. }
+        platform: { $ref: '#/components/schemas/DevicePlatform' }
+
+    # ---------- Dashboard / Demo ----------
+    DashboardSummary:
+      type: object
+      properties:
+        trays:
+          type: object
+          description: Số khay theo trạng thái.
+          properties:
+            AVAILABLE: { type: integer }
+            RESERVED: { type: integer }
+            RENTED: { type: integer }
+            CLEANING: { type: integer }
+        rentals:
+          type: object
+          description: Số đơn theo trạng thái.
+          properties:
+            PAID: { type: integer }
+            ACTIVE: { type: integer }
+            EXPIRED: { type: integer }
+            COMPLETED: { type: integer }
+            REJECTED: { type: integer }
+        revenueTotal:
+          { type: integer, description: Tổng doanh thu (VND) của giao dịch PAID., example: 4500000 }
+        harvestCount: { type: integer }
+        totalHarvestKg: { type: number, format: double }
+    DemoState:
+      type: object
+      required: [demoMode, effectiveDate]
+      properties:
+        demoMode: { type: boolean }
+        simulatedDate: { type: string, format: date, nullable: true }
+        effectiveDate:
+          type: string
+          format: date
+          description: Ngày hệ thống đang dùng làm "hôm nay".
+    SetDemoDateRequest:
+      type: object
+      required: [date]
+      properties:
+        date: { type: string, format: date, nullable: true, example: '2026-11-15' }
+    ExpiryJobResult:
+      type: object
+      properties:
+        effectiveDate: { type: string, format: date }
+        reminded: { type: integer, description: Số đơn được nhắc sắp hết hạn. }
+        expired: { type: integer, description: Số đơn chuyển ACTIVE -> EXPIRED. }
+        completed: { type: integer, description: Số đơn chuyển EXPIRED -> COMPLETED. }
+        alertedActiveCycles: { type: integer }
+
+    # ---------- Internal ----------
+    RoomAccessDecision:
+      type: object
+      required: [allowed]
+      properties:
+        allowed: { type: boolean }
+        reason: { type: string, nullable: true, example: Đơn thuê đã hết hạn }
+        rentalId: { type: string, format: uuid, nullable: true }
+        endDate: { type: string, format: date, nullable: true }
+    CreateAlertRequest:
+      type: object
+      required: [type, roomId, message, occurredAt, dedupeKey]
+      properties:
+        type:
+          type: string
+          enum: [DEVICE_OFFLINE, THRESHOLD_BREACH]
+        roomId: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid, nullable: true }
+        metric:
+          type: string
+          enum: [TEMPERATURE, HUMIDITY]
+          nullable: true
+        value: { type: number, format: double, nullable: true }
+        message: { type: string, example: Camera phòng A1 mất kết nối }
+        occurredAt: { type: string, format: date-time }
+        dedupeKey:
+          type: string
+          description: Khóa chống trùng, vd `DEVICE_OFFLINE:<deviceId>:<thời điểm chuyển trạng thái>`.
+    CreateAlertResponse:
+      type: object
+      required: [created]
+      properties:
+        created: { type: boolean }
+        notificationId: { type: string, format: uuid, nullable: true }

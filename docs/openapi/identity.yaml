@@ -1,0 +1,421 @@
+openapi: 3.0.3
+info:
+  title: Identity Service API
+  version: 0.1.0-draft
+  description: |
+    Xác thực và quản lý người dùng. **BẢN NHÁP** để nhóm và web/mobile thống nhất hợp đồng API.
+
+    - Mọi request đi qua API Gateway: `http://localhost:8080/api/identity/...`
+    - Token: JWT HS256, hạn tối đa 1 giờ; payload gồm `sub` (userId), `role`, `name`.
+    - Vai trò: `ADMIN` (kế thừa quyền `OPERATOR`), `OPERATOR`, `CUSTOMER`.
+    - Phân trang: `?page=1&limit=20` → `{ items, page, limit, total }`.
+    - Lỗi: `{ "error": { "code", "message", "details?", "requestId" } }`.
+servers:
+  - url: http://localhost:8080/api/identity
+    description: Qua API Gateway (dùng cái này)
+  - url: http://localhost:3001
+    description: Gọi thẳng Identity (chỉ để debug)
+tags:
+  - name: Auth
+    description: Đăng ký, đăng nhập, làm mới token (công khai)
+  - name: Me
+    description: Hồ sơ của chính mình
+  - name: Users
+    description: Quản lý người dùng (chỉ ADMIN)
+security:
+  - bearerAuth: []
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: register
+      summary: Khách hàng tự đăng ký (FR-03)
+      description: Tạo tài khoản vai trò `CUSTOMER`. Email phải duy nhất. Không tự đăng nhập; client gọi `/auth/login` sau đó.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Đã tạo tài khoản.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '409':
+          description: Email đã tồn tại (`CONFLICT`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Đăng nhập (FR-02, UC-01)
+      description: |
+        Trả access token (JWT) và refresh token. Sai mật khẩu 5 lần liên tiếp thì khóa tạm 5 phút (`ACCOUNT_LOCKED`).
+        Thông báo sai thông tin **không** nói rõ email hay mật khẩu sai.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Đăng nhập thành công.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Tài khoản đã bị vô hiệu hóa (`ACCOUNT_DISABLED`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '423':
+          description: Tài khoản đang bị khóa tạm do sai mật khẩu nhiều lần (`ACCOUNT_LOCKED`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      summary: Làm mới access token
+      description: |
+        Đổi refresh token còn hạn lấy access token mới **và refresh token mới**; token cũ bị thu hồi (xoay vòng,
+        mỗi refresh token chỉ dùng được **một lần**). Access token mới mang vai trò và họ tên mới nhất của người dùng.
+
+        Dùng lại một refresh token đã bị thu hồi được coi là dấu hiệu bị đánh cắp: **toàn bộ** phiên của người dùng
+        đó bị thu hồi và phải đăng nhập lại. Client phải gửi các yêu cầu làm mới **tuần tự** (không gửi song song).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '200':
+          description: Cặp token mới.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Tài khoản đã bị vô hiệu hóa (`ACCOUNT_DISABLED`); mọi refresh token của tài khoản bị thu hồi.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: Đăng xuất (thu hồi refresh token)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+      responses:
+        '204':
+          description: Đã thu hồi (kể cả khi token không tồn tại, để idempotent).
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /me:
+    get:
+      tags: [Me]
+      operationId: getMyProfile
+      summary: Xem hồ sơ của mình (FR-05)
+      responses:
+        '200':
+          description: Hồ sơ hiện tại.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Me]
+      operationId: updateMyProfile
+      summary: Sửa hồ sơ của mình (FR-05)
+      description: Chỉ sửa được họ tên, số điện thoại, địa chỉ (gửi `null` để xóa). Gửi email, vai trò, trạng thái hoặc trường lạ bị từ chối `422`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        '200':
+          description: Hồ sơ sau khi cập nhật.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: Danh sách người dùng (FR-04) — ADMIN
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: role
+          in: query
+          schema: { $ref: '#/components/schemas/Role' }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/UserStatus' }
+        - name: q
+          in: query
+          description: Tìm theo tên hoặc email (chứa chuỗi, không phân biệt hoa thường).
+          schema: { type: string }
+      responses:
+        '200':
+          description: Trang người dùng.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Users]
+      operationId: createUser
+      summary: Admin tạo tài khoản (FR-04) — ADMIN
+      description: Tạo tài khoản với vai trò bất kỳ (kể cả `OPERATOR`, `ADMIN`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateUserRequest' }
+      responses:
+        '201':
+          description: Đã tạo.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [Users]
+      operationId: getUser
+      summary: Chi tiết người dùng — ADMIN
+      responses:
+        '200':
+          description: Người dùng.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    patch:
+      tags: [Users]
+      operationId: updateUser
+      summary: Sửa thông tin / gán vai trò (FR-04) — ADMIN
+      description: |
+        Sửa họ tên, vai trò, số điện thoại, địa chỉ. Không sửa được email, mật khẩu, trạng thái (dùng các endpoint riêng).
+        Vai trò mới có hiệu lực ở access token sau lần làm mới kế tiếp.
+        Trả `409 INVALID_STATE` khi hạ quyền **Admin đang hoạt động cuối cùng**.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateUserRequest' }
+      responses:
+        '200':
+          description: Người dùng sau cập nhật.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /users/{id}/deactivate:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      tags: [Users]
+      operationId: deactivateUser
+      summary: Vô hiệu hóa tài khoản (FR-04, BR-15) — ADMIN
+      description: |
+        Không xóa tài khoản (BR-15) và thu hồi mọi refresh token của người đó; access token đang cấp còn hiệu lực
+        tối đa đến khi hết hạn (BR-16). Idempotent: vô hiệu hóa lần hai vẫn trả `200`.
+
+        Trả `409 INVALID_STATE` khi Admin tự vô hiệu hóa chính mình, hoặc khi đó là **Admin đang hoạt động cuối cùng**.
+      responses:
+        '200':
+          description: Tài khoản sau khi vô hiệu hóa.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /users/{id}/activate:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      tags: [Users]
+      operationId: activateUser
+      summary: Kích hoạt lại tài khoản (FR-04) — ADMIN
+      responses:
+        '200':
+          description: Tài khoản sau khi kích hoạt.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /users/{id}/reset-password:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    post:
+      tags: [Users]
+      operationId: resetUserPassword
+      summary: Admin đặt lại mật khẩu (FR-04) — ADMIN
+      description: Đặt mật khẩu mới và thu hồi mọi refresh token của người dùng đó.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResetPasswordRequest' }
+      responses:
+        '204': { description: Đã đặt lại mật khẩu. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Page: { $ref: './common.yaml#/components/parameters/Page' }
+    Limit: { $ref: './common.yaml#/components/parameters/Limit' }
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest: { $ref: './common.yaml#/components/responses/BadRequest' }
+    Unauthorized: { $ref: './common.yaml#/components/responses/Unauthorized' }
+    Forbidden: { $ref: './common.yaml#/components/responses/Forbidden' }
+    NotFound: { $ref: './common.yaml#/components/responses/NotFound' }
+    Conflict: { $ref: './common.yaml#/components/responses/Conflict' }
+    ValidationError: { $ref: './common.yaml#/components/responses/ValidationError' }
+  schemas:
+    Error: { $ref: './common.yaml#/components/schemas/Error' }
+    PageMeta: { $ref: './common.yaml#/components/schemas/PageMeta' }
+    Role:
+      type: string
+      enum: [ADMIN, OPERATOR, CUSTOMER]
+    UserStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    User:
+      type: object
+      required: [id, name, email, role, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: Nguyễn Văn An }
+        email: { type: string, format: email, example: an@example.com }
+        role: { $ref: '#/components/schemas/Role' }
+        status: { $ref: '#/components/schemas/UserStatus' }
+        phone: { type: string, nullable: true, example: '0901234567' }
+        address: { type: string, nullable: true }
+        lastLoginAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+    UserList:
+      allOf:
+        - $ref: '#/components/schemas/PageMeta'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/User' }
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 72, format: password }
+        phone: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: admin@example.com }
+        password: { type: string, format: password }
+    TokenPair:
+      type: object
+      required: [accessToken, refreshToken, expiresIn]
+      properties:
+        accessToken: { type: string, description: JWT HS256 }
+        refreshToken: { type: string }
+        expiresIn: { type: integer, description: Thời hạn access token (giây)., example: 3600 }
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/TokenPair'
+        - type: object
+          required: [user]
+          properties:
+            user: { $ref: '#/components/schemas/User' }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    UpdateProfileRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        phone: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+    CreateUserRequest:
+      type: object
+      required: [name, email, password, role]
+      properties:
+        name: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 72, format: password }
+        role: { $ref: '#/components/schemas/Role' }
+        phone: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+    UpdateUserRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        phone: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+    ResetPasswordRequest:
+      type: object
+      required: [newPassword]
+      properties:
+        newPassword: { type: string, minLength: 8, maxLength: 72, format: password }
