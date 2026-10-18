@@ -3,7 +3,7 @@
 Ứng dụng Android cho **Customer** của Smart Mushroom System (SRS 2.4, 7.1). Chỉ gọi **API Gateway**
 (`/api/identity/**`, `/api/core/**`, `/api/monitoring/**`), không gọi thẳng service.
 
-Đã làm: khung ứng dụng (#185) và đăng ký/đăng nhập (#186). Các tab *Khay của tôi* và *Thông báo* đang là màn hình chờ.
+Đã làm: khung ứng dụng (#185) và đăng ký/đăng nhập (#186). Các tab _Khay của tôi_ và _Thông báo_ đang là màn hình chờ.
 
 ## Chạy lần đầu
 
