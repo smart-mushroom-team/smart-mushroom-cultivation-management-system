@@ -8,7 +8,7 @@ import 'package:mushroom_customer/core/widgets/paged_list_view.dart';
 import '../support/fakes.dart';
 
 class _Harness extends ConsumerWidget {
-  const _Harness({super.key});
+  const _Harness();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,7 +36,8 @@ Widget _app(FakePagedSource<int> source) => ProviderScope(
     );
 
 void main() {
-  testWidgets('hiện trang đầu, cuộn tới cuối thì tự tải trang kế', (tester) async {
+  testWidgets('hiện trang đầu, cuộn tới cuối thì tự tải trang kế',
+      (tester) async {
     final source = FakePagedSource<int>(List.generate(30, (i) => i + 1));
     await tester.pumpWidget(_app(source));
     await tester.pumpAndSettle();
@@ -51,7 +52,8 @@ void main() {
     expect(find.text('Mục 11'), findsOneWidget);
   });
 
-  testWidgets('tải trang kế lỗi: hiện lỗi kèm Thử lại, bấm là tải lại', (tester) async {
+  testWidgets('tải trang kế lỗi: hiện lỗi kèm Thử lại, bấm là tải lại',
+      (tester) async {
     final source = FakePagedSource<int>(List.generate(30, (i) => i + 1));
     await tester.pumpWidget(_app(source));
     await tester.pumpAndSettle();
@@ -62,7 +64,8 @@ void main() {
 
     expect(find.textContaining('Không kết nối được máy chủ'), findsOneWidget);
     expect(find.text('Thử lại'), findsOneWidget);
-    expect(source.requestedPages.where((p) => p == 2).length, 1, reason: 'lỗi rồi thì không tự gọi lặp');
+    expect(source.requestedPages.where((p) => p == 2).length, 1,
+        reason: 'lỗi rồi thì không tự gọi lặp');
 
     source.failures.clear();
     await tester.tap(find.text('Thử lại'));
@@ -90,13 +93,15 @@ void main() {
     expect(find.text('Chưa có dữ liệu.'), findsOneWidget);
   });
 
-  testWidgets('lần tải đầu lỗi: màn hình lỗi có Thử lại, bấm là tải lại', (tester) async {
+  testWidgets('lần tải đầu lỗi: màn hình lỗi có Thử lại, bấm là tải lại',
+      (tester) async {
     final source = FakePagedSource<int>([1, 2, 3])..failures[1] = timeoutError;
     await tester.pumpWidget(_app(source));
     await tester.pumpAndSettle();
 
     expect(find.text('Thử lại'), findsOneWidget);
-    expect(find.byIcon(Icons.cloud_off), findsOneWidget, reason: 'lỗi kết nối dùng biểu tượng mất mạng');
+    expect(find.byIcon(Icons.cloud_off), findsOneWidget,
+        reason: 'lỗi kết nối dùng biểu tượng mất mạng');
 
     source.failures.clear();
     await tester.tap(find.text('Thử lại'));
