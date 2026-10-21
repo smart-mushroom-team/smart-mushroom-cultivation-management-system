@@ -29,4 +29,15 @@ class AppConfig {
     Duration(seconds: 5),
     Duration(seconds: 10),
   ];
+
+  /// Repository giả cho các API chưa xong, bật theo từng tính năng (không sửa code):
+  ///   flutter run --dart-define=FAKE_REPOS=trays,packages,rentals
+  ///   flutter run --dart-define=FAKE_REPOS=all
+  /// Tên tính năng: `trays`, `packages`, `rentals`.
+  static const String _fakeRepos = String.fromEnvironment('FAKE_REPOS');
+
+  static bool useFake(String feature) {
+    final names = _fakeRepos.split(',').map((s) => s.trim()).toSet();
+    return names.contains('all') || names.contains(feature);
+  }
 }
