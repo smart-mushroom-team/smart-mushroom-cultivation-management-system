@@ -16,3 +16,9 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   ref.onDispose(() => client.reconnecting.dispose());
   return client;
 });
+
+/// Id người đang đăng nhập. Dữ liệu theo người dùng (khay, đơn thuê...) `watch` provider này
+/// để tự tải lại khi đổi tài khoản, không để lộ dữ liệu của người trước.
+final currentUserIdProvider = Provider<String?>(
+  (ref) => ref.watch(authControllerProvider.select((s) => s.user?.id)),
+);

@@ -6,6 +6,10 @@ import '../../features/auth/application/auth_controller.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/home/presentation/home_shell.dart';
+import '../../features/packages/data/rental_package.dart';
+import '../../features/packages/presentation/packages_screen.dart';
+import '../../features/rentals/presentation/rent_tray_screen.dart';
+import '../../features/trays/presentation/my_trays_screen.dart';
 
 /// Bảng điều hướng. Đăng nhập/đăng xuất chỉ cần đổi `authControllerProvider`, router tự chuyển màn hình.
 final routerProvider = Provider<GoRouter>((ref) {
@@ -39,11 +43,22 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/trays',
-              builder: (_, __) => const PlaceholderScreen(
-                title: 'Khay của tôi',
-                icon: Icons.grid_view,
-                note: 'Danh sách khay đang thuê sẽ hiện ở đây (task #189).',
-              ),
+              builder: (_, __) => const MyTraysScreen(),
+              routes: [
+                // Nằm trong nhánh tab "Khay của tôi" nên thanh điều hướng dưới vẫn hiện và nút Back quay về danh sách khay.
+                GoRoute(
+                  path: 'packages',
+                  builder: (_, __) => const PackagesScreen(),
+                  routes: [
+                    GoRoute(
+                      path: 'rent',
+                      // Gói được truyền qua `extra`; mở thẳng đường dẫn này (không có gói) thì quay về danh sách gói.
+                      redirect: (_, state) => state.extra is RentalPackage ? null : '/trays/packages',
+                      builder: (_, state) => RentTrayScreen(package: state.extra! as RentalPackage),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ]),
           StatefulShellBranch(routes: [
