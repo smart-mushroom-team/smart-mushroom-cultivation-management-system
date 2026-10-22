@@ -19,21 +19,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unsubscribe = connection.subscribe(setConnectionState);
-    apiClient.me().then(setUser).catch(() => setUser(null)).finally(() => setIsLoading(false));
-    return () => { unsubscribe(); };
+    apiClient
+      .me()
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => setIsLoading(false));
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
-  const value = useMemo<AuthContextValue>(() => ({
-    user, isLoading, connectionState,
-    async login(email, password) {
-      const result = await apiClient.login(email, password);
-      if (result.user.role !== 'ADMIN' && result.user.role !== 'OPERATOR') {
-        throw new ApiError(403, 'FORBIDDEN', 'Tai khoan nay khong duoc phep su dung web quan tri.');
-      }
-      setUser(result.user);
-    },
-    async logout() { try { await apiClient.logout(); } finally { setUser(null); } },
-  }), [user, isLoading, connectionState]);
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user,
+      isLoading,
+      connectionState,
+      async login(email, password) {
+        const result = await apiClient.login(email, password);
+        if (result.user.role !== 'ADMIN' && result.user.role !== 'OPERATOR') {
+          throw new ApiError(
+            403,
+            'FORBIDDEN',
+            'Tai khoan nay khong duoc phep su dung web quan tri.',
+          );
+        }
+        setUser(result.user);
+      },
+      async logout() {
+        try {
+          await apiClient.logout();
+        } finally {
+          setUser(null);
+        }
+      },
+    }),
+    [user, isLoading, connectionState],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -7,14 +7,34 @@ let connectionState: ConnectionState = 'idle';
 const listeners = new Set<ConnectionListener>();
 
 export const connection = {
-  get state() { return connectionState; },
-  subscribe(listener: ConnectionListener) { listeners.add(listener); return () => listeners.delete(listener); },
+  get state() {
+    return connectionState;
+  },
+  subscribe(listener: ConnectionListener) {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  },
 };
-function setConnectionState(state: ConnectionState) { connectionState = state; listeners.forEach((listener) => listener(state)); }
-function wait(ms: number) { return new Promise((resolve) => setTimeout(resolve, ms)); }
-function isRetryable(status?: number) { return status === 502 || status === 503 || status === undefined; }
+function setConnectionState(state: ConnectionState) {
+  connectionState = state;
+  listeners.forEach((listener) => listener(state));
+}
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+function isRetryable(status?: number) {
+  return status === 502 || status === 503 || status === undefined;
+}
 
-export class ApiError extends Error { constructor(public status: number, public code?: string, message = 'Có lỗi xảy ra') { super(message); } }
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public code?: string,
+    message = 'Có lỗi xảy ra',
+  ) {
+    super(message);
+  }
+}
 
 async function request<T>(path: string, init: RequestInit = {}, canRefresh = true): Promise<T> {
   const headers = new Headers(init.headers);
@@ -26,31 +46,56 @@ async function request<T>(path: string, init: RequestInit = {}, canRefresh = tru
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
     try {
-      const response = await fetch(`${BFF_BASE_URL}${path}`, { ...init, headers, credentials: 'include', signal: controller.signal });
+      const response = await fetch(`${BFF_BASE_URL}${path}`, {
+        ...init,
+        headers,
+        credentials: 'include',
+        signal: controller.signal,
+      });
       clearTimeout(timeout);
       if (response.ok) {
         setConnectionState('connected');
         if (response.status === 204) return undefined as T;
-        return await response.json() as T;
+        return (await response.json()) as T;
       }
-      const body = await response.json().catch(() => ({})) as { error?: { code?: string; message?: string } };
-      if (isRetryable(response.status) && attempt < RETRY_DELAYS_MS.length) { await wait(RETRY_DELAYS_MS[attempt]); continue; }
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: { code?: string; message?: string };
+      };
+      if (isRetryable(response.status) && attempt < RETRY_DELAYS_MS.length) {
+        await wait(RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
       setConnectionState('error');
       throw new ApiError(response.status, body.error?.code, body.error?.message);
     } catch (error) {
-      clearTimeout(timeout); lastError = error;
+      clearTimeout(timeout);
+      lastError = error;
       if (error instanceof ApiError && !isRetryable(error.status)) throw error;
       const isTimeout = error instanceof DOMException && error.name === 'AbortError';
-      if (!isTimeout && (!isPost || error instanceof TypeError) && attempt < RETRY_DELAYS_MS.length) { await wait(RETRY_DELAYS_MS[attempt]); continue; }
+      if (
+        !isTimeout &&
+        (!isPost || error instanceof TypeError) &&
+        attempt < RETRY_DELAYS_MS.length
+      ) {
+        await wait(RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
       setConnectionState('error');
     }
   }
-  throw lastError instanceof Error ? lastError : new ApiError(0, 'NETWORK_ERROR', 'Không thể kết nối Gateway');
+  throw lastError instanceof Error
+    ? lastError
+    : new ApiError(0, 'NETWORK_ERROR', 'Không thể kết nối Gateway');
 }
 
 export const apiClient = {
   request,
-  login: (email: string, password: string) => request<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase(), password }) }, false),
+  login: (email: string, password: string) =>
+    request<LoginResponse>(
+      '/auth/login',
+      { method: 'POST', body: JSON.stringify({ email: email.trim().toLowerCase(), password }) },
+      false,
+    ),
   me: () => request<User>('/auth/me', {}, false),
   logout: () => request<void>('/auth/logout', { method: 'POST', body: JSON.stringify({}) }, false),
 };
