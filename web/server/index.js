@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -40,7 +39,7 @@ function parseJsonBody(req) {
   });
 }
 
-async function gatewayRequest(pathname, { method = 'GET', body, accessToken, refreshToken } = {}) {
+async function gatewayRequest(pathname, { method = 'GET', body, accessToken } = {}) {
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
