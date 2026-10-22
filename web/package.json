@@ -1,0 +1,25 @@
+{
+  "name": "smart-mushroom-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server/index.js",
+    "build": "tsc -b && vite build",
+    "preview": "node server/index.js",
+    "start": "NODE_ENV=production node server/index.js"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "express": "^5.3.0",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-router-dom": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0"
+  }
+}
