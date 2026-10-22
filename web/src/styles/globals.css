@@ -1,0 +1,154 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #1f2937;
+  background: #f5f7fb;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #eef8f0, #f7faf7);
+}
+.auth-card {
+  width: min(100%, 420px);
+  padding: 36px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 20px 50px #1f513315;
+}
+.brand {
+  font-weight: 800;
+  color: #176b3a;
+  font-size: 18px;
+}
+h1 {
+  margin: 20px 0 8px;
+}
+.muted {
+  color: #6b7280;
+}
+label {
+  display: grid;
+  gap: 7px;
+  margin: 18px 0;
+  font-weight: 600;
+}
+input {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 11px 12px;
+}
+.primary-button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  padding: 12px;
+  color: white;
+  background: #176b3a;
+  font-weight: 700;
+}
+.primary-button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.form-error,
+.connection-banner {
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 14px 0;
+  font-size: 14px;
+}
+.form-error {
+  color: #991b1b;
+  background: #fef2f2;
+}
+.connection-banner {
+  color: #854d0e;
+  background: #fef9c3;
+}
+.connection-banner.error {
+  color: #991b1b;
+  background: #fee2e2;
+}
+.dashboard-shell {
+  min-height: 100vh;
+  display: flex;
+}
+.sidebar {
+  width: 250px;
+  padding: 24px 16px;
+  color: white;
+  background: #123b27;
+}
+.sidebar nav {
+  display: grid;
+  gap: 6px;
+  margin-top: 32px;
+}
+.sidebar a {
+  color: #d1fae5;
+  text-decoration: none;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.sidebar a.active,
+.sidebar a:hover {
+  background: #276749;
+  color: white;
+}
+.main-content {
+  flex: 1;
+  min-width: 0;
+}
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 28px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+}
+.topbar button {
+  border: 1px solid #d1d5db;
+  background: white;
+  border-radius: 7px;
+  padding: 8px 12px;
+}
+.role {
+  margin-left: 10px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #166534;
+  background: #dcfce7;
+  font-size: 12px;
+}
+.page-content {
+  padding: 32px;
+}
+@media (max-width: 720px) {
+  .sidebar {
+    width: 190px;
+  }
+  .page-content {
+    padding: 20px;
+  }
+  .topbar {
+    padding: 16px;
+  }
+}
