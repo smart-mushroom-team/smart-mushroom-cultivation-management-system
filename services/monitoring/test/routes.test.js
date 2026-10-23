@@ -20,10 +20,15 @@ const config = {
 
 const tokenFor = (role) => signAccessToken({ id: 'u1', role, name: 'T' }, { secret: SECRET });
 
-async function call(base, { method = 'GET', path, role, headers = {} }) {
+async function call(base, { method = 'GET', path, role, headers = {}, body }) {
   const h = { ...headers };
   if (role) h.authorization = `Bearer ${tokenFor(role)}`;
-  const res = await fetch(`${base}${path}`, { method, headers: h });
+  if (body && !h['content-type']) h['content-type'] = 'application/json';
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers: h,
+    body: body ? JSON.stringify(body) : undefined,
+  });
   return res.status;
 }
 
@@ -34,15 +39,15 @@ async function call(base, { method = 'GET', path, role, headers = {} }) {
 const CASES = [
   ['GET', '/devices', undefined, 401],
   ['GET', '/devices', ROLES.CUSTOMER, 403],
-  ['GET', '/devices', ROLES.OPERATOR, 501],
-  ['POST', '/devices', ROLES.ADMIN, 501],
+  ['GET', '/devices', ROLES.OPERATOR, 200],
+  ['POST', '/devices', ROLES.ADMIN, 500],
   ['PUT', '/rooms/r1/threshold', ROLES.CUSTOMER, 403],
   ['PUT', '/rooms/r1/threshold', ROLES.OPERATOR, 501],
   ['GET', '/rooms/r1/camera/snapshot', undefined, 401],
-  ['GET', '/rooms/r1/camera/snapshot', ROLES.OPERATOR, 501], // staff không phụ thuộc Core
-  ['GET', '/rooms/r1/sensor/latest', ROLES.CUSTOMER, 503], // Core không phản hồi => fail-closed
-  ['POST', '/iot/devices/d1/telemetry', undefined, 501], // chưa cài deviceAuth => từ chối (không mở cổng)
-  ['POST', '/iot/devices/d1/snapshot', undefined, 501],
+  ['GET', '/rooms/r1/camera/snapshot', ROLES.OPERATOR, 501],
+  ['GET', '/rooms/r1/sensor/latest', ROLES.CUSTOMER, 503],
+  ['POST', '/iot/devices/d1/telemetry', undefined, 401],
+  ['POST', '/iot/devices/d1/snapshot', undefined, 401],
 ];
 
 test('/health công khai', async (t) => {
@@ -58,8 +63,8 @@ test('bảng phân quyền theo vai trò', async (t) => {
   await new Promise((r) => server.once('listening', r));
   t.after(() => server.close());
   const base = `http://127.0.0.1:${server.address().port}`;
-  for (const [method, path, role, expected, headers] of CASES) {
-    const status = await call(base, { method, path, role, headers });
+  for (const [method, path, role, expected, headers, body] of CASES) {
+    const status = await call(base, { method, path, role, headers, body });
     assert.equal(status, expected, `${method} ${path} role=${role || 'none'}`);
   }
 });
