@@ -1,23 +1,91 @@
 'use strict';
 
-const { notImplemented } = require('@mushroom/shared');
+const deviceService = require('../services/device.service');
 
-// TODO: thay từng stub bằng logic thật (controller chỉ nhận/trả request, nghiệp vụ nằm ở services/).
+// Controller = nhận request, gọi service, trả response
 module.exports = {
-  // GET / — lọc roomId, type, status, connectionState
-  list: notImplemented('device.list'),
-  // GET /summary — FR-44: số thiết bị theo connectionState
-  summary: notImplemented('device.summary'),
-  // POST / — FR-27: sinh API key, trả plaintext một lần, chỉ lưu hash
-  create: notImplemented('device.create'),
-  // GET /:id — trạng thái, lastSeen
-  getById: notImplemented('device.getById'),
-  // PATCH /:id — FR-40: đổi tên, chu kỳ gửi (KHÔNG đổi roomId, BR-09)
-  update: notImplemented('device.update'),
-  // POST /:id/activate — FR-28: kích hoạt lại (bắt đầu ở OFFLINE)
-  activate: notImplemented('device.activate'),
-  // POST /:id/deactivate — FR-28: đặt INACTIVE + OFFLINE, không cảnh báo
-  deactivate: notImplemented('device.deactivate'),
-  // POST /:id/rotate-key — FR-29 (mức S): cấp lại API key, khóa cũ mất hiệu lực ngay
-  rotateKey: notImplemented('device.rotateKey'),
+  // POST /devices — tạo device mới
+  async create(req, res, next) {
+    try {
+      const result = await deviceService.createDevice(req.body);
+      return res.status(201).json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // GET /devices — lấy danh sách
+  async list(req, res, next) {
+    try {
+      const devices = await deviceService.listDevices(req.query);
+      return res.json({ data: devices });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // GET /devices/:id — lấy 1 device
+  async getById(req, res, next) {
+    try {
+      const device = await deviceService.getDeviceById(req.params.id);
+      return res.json(device);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PATCH /devices/:id — cập nhật
+  async update(req, res, next) {
+    try {
+      const device = await deviceService.updateDevice(req.params.id, req.body);
+      return res.json(device);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // POST /devices/:id/activate
+  async activate(req, res, next) {
+    try {
+      const device = await deviceService.activateDevice(req.params.id);
+      return res.json(device);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // POST /devices/:id/deactivate
+  async deactivate(req, res, next) {
+    try {
+      const device = await deviceService.deactivateDevice(req.params.id);
+      return res.json(device);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // GET /devices/summary — số thiết bị theo connectionState
+  async summary(req, res, next) {
+    try {
+      const devices = await deviceService.listDevices();
+      const summary = {
+        online: devices.filter((d) => d.connectionState === 'ONLINE').length,
+        offline: devices.filter((d) => d.connectionState === 'OFFLINE').length,
+        total: devices.length,
+      };
+      return res.json(summary);
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // POST /devices/:id/rotate-key
+  async rotateKey(req, res, next) {
+    try {
+      const result = await deviceService.rotateDeviceKey(req.params.id);
+      return res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  },
 };
