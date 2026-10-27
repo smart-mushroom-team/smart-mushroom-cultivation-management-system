@@ -1,43 +1,24 @@
-name: CI
-
+name: ci
 on:
-  push:
-    branches: ['**']
   pull_request:
-    branches: [main, develop]
-
+  push:
+    branches: [main]
 jobs:
-  lint-test:
+  python:
     runs-on: ubuntu-latest
-    env:
-      JWT_SECRET: ci-test-secret
-      SERVICE_KEY: ci-service-key
+    strategy:
+      matrix:
+        service: [gateway, identity, core, monitoring]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: install dependencies
-        run: npm install
-      - run: npm ci
-      - name: Sinh Prisma Client
-        run: npm run prisma:generate
-      - name: Lint
-        run: npm run lint
-      - name: Kiểm tra format
-        run: npm run format:check
-      - name: Kiểm tra OpenAPI
-        run: npm run openapi:validate
-      - name: Test
-        run: npm test
-
-  docker-build:
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ruff pytest -r services/${{ matrix.service }}/requirements.txt
+      - run: ruff check libs services
+      - run: PYTHONPATH=../../libs python -m pytest -q
+        working-directory: services/${{ matrix.service }}
+  compose-config:
     runs-on: ubuntu-latest
-    needs: lint-test
     steps:
       - uses: actions/checkout@v4
-      - name: Tạo .env từ mẫu
-        run: cp .env.example .env
-      - name: Build image các service
-        run: docker compose build
+      - run: cp .env.example .env && docker compose config -q

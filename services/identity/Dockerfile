@@ -1,29 +1,8 @@
-# Build context là THƯ MỤC GỐC của repo (xem docker-compose.yml): cần cả libs/shared.
-FROM node:22-bookworm-slim
-
-# Prisma cần openssl
-RUN apt-get update -y \
- && apt-get install -y --no-install-recommends openssl ca-certificates \
- && rm -rf /var/lib/apt/lists/*
-
+FROM python:3.12-slim
+ENV PYTHONUNBUFFERED=1 PYTHONPATH=/app/libs/common:/app
 WORKDIR /app
-
-# 1) Chỉ copy các package.json trước để tận dụng cache layer khi cài dependency
-COPY package.json package-lock.json ./
-COPY libs/shared/package.json libs/shared/
-COPY gateway/package.json gateway/
-COPY services/identity/package.json services/identity/
-COPY services/core/package.json services/core/
-COPY services/monitoring/package.json services/monitoring/
-RUN npm ci --workspace=services/identity
-
-# 2) Copy mã nguồn, sinh Prisma Client
-COPY libs/shared libs/shared
-COPY services/identity services/identity
-RUN npx prisma generate --schema services/identity/prisma/schema.prisma
-
-WORKDIR /app/services/identity
-EXPOSE 3001
-
-# Áp dụng migration rồi chạy service (chưa có migration nào thì bước đầu không làm gì)
-CMD ["sh", "-c", "npx prisma migrate deploy && node src/index.js"]
+COPY services/identity/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY libs/common /app/libs/common
+COPY services/identity /app
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

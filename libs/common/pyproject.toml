@@ -1,0 +1,4 @@
+[project]
+name = "common"
+version = "0.1.0"
+dependencies = ["fastapi", "pyjwt", "prometheus-fastapi-instrumentator", "sqlalchemy", "psycopg2-binary"]

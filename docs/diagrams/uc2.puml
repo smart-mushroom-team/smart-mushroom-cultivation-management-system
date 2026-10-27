@@ -1,0 +1,53 @@
+@startuml
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam ArrowColor black
+skinparam ActorBackgroundColor #F2F2F2
+skinparam ActorBorderColor black
+skinparam UsecaseBackgroundColor #F2F2F2
+skinparam UsecaseBorderColor black
+skinparam RectangleBackgroundColor white
+skinparam RectangleBorderColor black
+left to right direction
+actor Administrator as AD
+actor "Farm Operator" as OP
+actor Customer as CU
+actor "Camera Device" as CAM
+actor "Sensor Device" as SEN
+actor "Hệ thống (job)" as SYS
+AD --|> OP
+rectangle "Smart Mushroom System" {
+  usecase "UC-01 Đăng ký / Đăng nhập" as UC01
+  usecase "UC-02 Thuê khay" as UC02
+  usecase "UC-04 Xem Khay của tôi" as UC04
+  usecase "UC-05 Xem camera & môi trường phòng" as UC05
+  usecase "UC-06 Cập nhật tiến độ đợt nuôi" as UC06
+  usecase "UC-07 Thu hoạch / Loại bỏ đợt nuôi" as UC07
+  usecase "UC-09 Quản lý thiết bị & ngưỡng" as UC09
+  usecase "UC-10 Gửi snapshot" as UC10
+  usecase "UC-11 Gửi số liệu môi trường" as UC11
+  usecase "UC-12 Giám sát thiết bị & cảnh báo" as UC12
+  usecase "UC-13 Xử lý hết hạn đơn thuê" as UC13
+  usecase "UC-14 Quản lý người dùng" as UC14
+  usecase "UC-15 Quản lý phòng & khay" as UC15
+  usecase "UC-16 Quản lý gói thuê" as UC16
+  usecase "UC-17 Xem thông báo" as UC17
+}
+AD --> UC14
+AD --> UC16
+OP --> UC01
+OP --> UC06
+OP --> UC07
+OP --> UC09
+OP --> UC15
+OP --> UC17
+CU --> UC01
+CU --> UC02
+CU --> UC04
+CU --> UC17
+CAM --> UC10
+SEN --> UC11
+SYS --> UC12
+SYS --> UC13
+UC05 .> UC04 : <<extend>>
+@enduml

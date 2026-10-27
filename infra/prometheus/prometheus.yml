@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  # /metrics chỉ có trong mạng docker, không được Gateway định tuyến và không publish cổng (FR-55)
+  - job_name: gateway
+    static_configs: [{ targets: ["gateway:8000"], labels: { service: gateway } }]
+  - job_name: identity
+    static_configs: [{ targets: ["identity:8000"], labels: { service: identity } }]
+  - job_name: core
+    static_configs: [{ targets: ["core:8000"], labels: { service: core } }]
+  - job_name: monitoring
+    static_configs: [{ targets: ["monitoring:8000"], labels: { service: monitoring } }]
+  - job_name: rabbitmq
+    static_configs: [{ targets: ["rabbitmq:15692"] }]
