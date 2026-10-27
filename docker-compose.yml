@@ -1,195 +1,149 @@
-# Chạy toàn bộ hệ thống khi phát triển:   docker compose up --build
-# Cần file .env (cp .env.example .env).
-#
-#   Gateway     http://localhost:8080        (điểm vào duy nhất cho web/mobile/thiết bị)
-#   Identity    http://localhost:3001        (mở cổng để debug; client KHÔNG gọi trực tiếp)
-#   Core        http://localhost:3002
-#   Monitoring  http://localhost:3003
-#   Postgres    localhost:5432               (1 container, 3 database)
-#
-# Tùy chọn:
-#   docker compose --profile docs up swagger-ui    -> http://localhost:8090  (xem OpenAPI)
-#   docker compose --profile mock up               -> Prism mock: 4011 identity, 4012 core, 4013 monitoring
+name: mushroom
 
 x-service-env: &service-env
-  NODE_ENV: ${NODE_ENV:-development}
-  LOG_LEVEL: ${LOG_LEVEL:-info}
-  LOG_PRETTY: ${LOG_PRETTY:-true}
-  JWT_SECRET: ${JWT_SECRET:?Hãy tạo file .env từ .env.example}
+  JWT_SECRET: ${JWT_SECRET}
+  SERVICE_KEY: ${SERVICE_KEY}
+  DEMO_MODE: ${DEMO_MODE:-false}
 
 services:
+  # ---------------- hạ tầng ----------------
   postgres:
     image: postgres:16-alpine
-    restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Hãy tạo file .env từ .env.example}
-      IDENTITY_DB_NAME: ${IDENTITY_DB_NAME}
-      IDENTITY_DB_USER: ${IDENTITY_DB_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
-      CORE_DB_NAME: ${CORE_DB_NAME}
-      CORE_DB_USER: ${CORE_DB_USER}
       CORE_DB_PASSWORD: ${CORE_DB_PASSWORD}
-      MONITORING_DB_NAME: ${MONITORING_DB_NAME}
-      MONITORING_DB_USER: ${MONITORING_DB_USER}
       MONITORING_DB_PASSWORD: ${MONITORING_DB_PASSWORD}
-    ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      NIFI_DB_PASSWORD: ${NIFI_DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d postgres']
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
-      timeout: 5s
-      retries: 10
+      retries: 20
+    deploy: { resources: { limits: { memory: 512m } } }
 
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - ./infra/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+      - rabbitdata:/var/lib/rabbitmq
+    ports: ["15672:15672"]          # UI quản trị (xem khi demo)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 20
+    deploy: { resources: { limits: { memory: 512m } } }
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]   # chỉ dữ liệu dựng lại được (BR-20)
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+    deploy: { resources: { limits: { memory: 128m } } }
+
+  nifi:
+    image: apache/nifi:1.27.0
+    environment:
+      SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_USER}
+      SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_PASSWORD}
+      NIFI_JVM_HEAP_INIT: 512m
+      NIFI_JVM_HEAP_MAX: 1g
+    ports: ["8443:8443"]
+    volumes:
+      - ./infra/nifi/drivers:/opt/nifi/nifi-current/drivers:ro      # đặt postgresql-*.jar vào đây
+      - nifidata:/opt/nifi/nifi-current/conf
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      postgres: { condition: service_healthy }
+    deploy: { resources: { limits: { memory: 1536m } } }
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
+
+  # ---------------- dịch vụ ứng dụng ----------------
   identity:
-    build:
-      context: .
-      dockerfile: services/identity/Dockerfile
-    restart: unless-stopped
-    command: sh -c "npx prisma migrate deploy && node --watch src/index.js"
+    build: { context: ., dockerfile: services/identity/Dockerfile }
     environment:
       <<: *service-env
-      PORT: 3001
-      DATABASE_URL: postgresql://${IDENTITY_DB_USER}:${IDENTITY_DB_PASSWORD}@postgres:5432/${IDENTITY_DB_NAME}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
-      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
-      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Administrator}
-    ports:
-      - '3001:3001'
-    volumes:
-      # Mount mã nguồn để `node --watch` tự khởi động lại khi sửa code.
-      # (Trên Windows nếu không tự reload: docker compose restart identity)
-      - ./services/identity/src:/app/services/identity/src
-      - ./libs/shared/src:/app/libs/shared/src
+      ROOT_PATH: /api/identity
+      DB_USER: identity_user
+      DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
+      DB_NAME: identity_db
+      JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-8}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD}
     depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck: &node-healthcheck
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://localhost:'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
+      postgres: { condition: service_healthy }
 
   core:
-    build:
-      context: .
-      dockerfile: services/core/Dockerfile
-    restart: unless-stopped
-    command: sh -c "npx prisma migrate deploy && node --watch src/index.js"
+    build: { context: ., dockerfile: services/core/Dockerfile }
     environment:
       <<: *service-env
-      PORT: 3002
-      DATABASE_URL: postgresql://${CORE_DB_USER}:${CORE_DB_PASSWORD}@postgres:5432/${CORE_DB_NAME}
-      SERVICE_KEY: ${SERVICE_KEY:?Hãy tạo file .env từ .env.example}
-      DEMO_MODE: ${DEMO_MODE:-false}
-      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Ho_Chi_Minh}
-      FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH:-/run/secrets/firebase-service-account.json}
+      ROOT_PATH: /api/core
+      DB_USER: core_user
+      DB_PASSWORD: ${CORE_DB_PASSWORD}
+      DB_NAME: core_db
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      FIREBASE_CREDENTIALS_FILE: ${FIREBASE_CREDENTIALS_FILE}
       FCM_DRY_RUN: ${FCM_DRY_RUN:-true}
-    ports:
-      - '3002:3002'
     volumes:
-      - ./services/core/src:/app/services/core/src
-      - ./libs/shared/src:/app/libs/shared/src
-      # Thư mục (không phải file) nên luôn tồn tại dù chưa có service account.
       - ./secrets:/run/secrets:ro
     depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck: *node-healthcheck
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
 
   monitoring:
-    build:
-      context: .
-      dockerfile: services/monitoring/Dockerfile
-    restart: unless-stopped
-    command: sh -c "npx prisma migrate deploy && node --watch src/index.js"
+    build: { context: ., dockerfile: services/monitoring/Dockerfile }
     environment:
       <<: *service-env
-      PORT: 3003
-      DATABASE_URL: postgresql://${MONITORING_DB_USER}:${MONITORING_DB_PASSWORD}@postgres:5432/${MONITORING_DB_NAME}
-      SERVICE_KEY: ${SERVICE_KEY:?Hãy tạo file .env từ .env.example}
-      CORE_INTERNAL_URL: http://core:3002 # gọi thẳng Core, không qua Gateway
-      ROOM_ACCESS_TIMEOUT_MS: ${ROOM_ACCESS_TIMEOUT_MS:-10000}
-    ports:
-      - '3003:3003'
-    volumes:
-      - ./services/monitoring/src:/app/services/monitoring/src
-      - ./libs/shared/src:/app/libs/shared/src
+      ROOT_PATH: /api/monitoring
+      DB_USER: monitoring_user
+      DB_PASSWORD: ${MONITORING_DB_PASSWORD}
+      DB_NAME: monitoring_db
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      REDIS_URL: redis://redis:6379/0
+      CORE_URL: http://core:8000
     depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck: *node-healthcheck
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
 
   gateway:
-    build:
-      context: .
-      dockerfile: gateway/Dockerfile
-    restart: unless-stopped
-    command: node --watch src/index.js
+    build: { context: ., dockerfile: services/gateway/Dockerfile }
     environment:
       <<: *service-env
-      GATEWAY_PORT: 8080
-      PORT: 8080
-      IDENTITY_URL: http://identity:3001
-      CORE_URL: http://core:3002
-      MONITORING_URL: http://monitoring:3003
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:8090}
-      GATEWAY_TIMEOUT_MS: ${GATEWAY_TIMEOUT_MS:-60000}
-      GATEWAY_RATE_LIMIT_PER_MIN: ${GATEWAY_RATE_LIMIT_PER_MIN:-600}
-    ports:
-      - '${GATEWAY_PORT:-8080}:8080'
-    volumes:
-      - ./gateway/src:/app/gateway/src
-      - ./libs/shared/src:/app/libs/shared/src
-    depends_on:
-      - identity
-      - core
-      - monitoring
-    healthcheck: *node-healthcheck
-
-  # ---------- Tùy chọn: tài liệu & mock API ----------
-  swagger-ui:
-    profiles: ['docs']
-    image: swaggerapi/swagger-ui:latest
-    ports:
-      - '8090:8080'
-    environment:
-      URLS: '[{"url":"/openapi/identity.yaml","name":"Identity"},{"url":"/openapi/core.yaml","name":"Core"},{"url":"/openapi/monitoring.yaml","name":"Monitoring"}]'
-    volumes:
-      - ./docs/openapi:/usr/share/nginx/html/openapi:ro
-
-  mock-identity:
-    profiles: ['mock']
-    image: stoplight/prism:5
-    command: mock -h 0.0.0.0 -p 4010 /specs/identity.yaml
-    ports: ['4011:4010']
-    volumes: ['./docs/openapi:/specs:ro']
-
-  mock-core:
-    profiles: ['mock']
-    image: stoplight/prism:5
-    command: mock -h 0.0.0.0 -p 4010 /specs/core.yaml
-    ports: ['4012:4010']
-    volumes: ['./docs/openapi:/specs:ro']
-
-  mock-monitoring:
-    profiles: ['mock']
-    image: stoplight/prism:5
-    command: mock -h 0.0.0.0 -p 4010 /specs/monitoring.yaml
-    ports: ['4013:4010']
-    volumes: ['./docs/openapi:/specs:ro']
+      IDENTITY_URL: http://identity:8000
+      CORE_URL: http://core:8000
+      MONITORING_URL: http://monitoring:8000
+      UPSTREAM_TIMEOUT_SECONDS: 30
+      MAX_BODY_BYTES: 2097152       # 2 MB (snapshot)
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3001"
+    ports: ["${GATEWAY_PORT:-8000}:8000"]   # cổng duy nhất của ứng dụng mở ra mạng
+    depends_on: [identity, core, monitoring]
 
 volumes:
   pgdata:
+  rabbitdata:
+  nifidata:

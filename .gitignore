@@ -1,33 +1,18 @@
-# Dependencies
-node_modules/
-
-# Prisma Client được sinh tự động (npm run prisma:generate)
-**/generated/
-
-# Biến môi trường & bí mật — TUYỆT ĐỐI không commit
+__pycache__/
+*.pyc
+.venv/
 .env
-.env.*
-!.env.example
-secrets/*
-!secrets/.gitkeep
-*firebase*adminsdk*.json
-*service-account*.json
-*serviceAccount*.json
-google-services.json
-GoogleService-Info.plist
-
-# Logs, build, coverage
-*.log
-npm-debug.log*
-coverage/
+*.local
+.pytest_cache/
+.ruff_cache/
+node_modules/
 dist/
 build/
-
-# Hệ điều hành / IDE
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
-*.swp
+.dart_tool/
+*.log
+# bí mật - KHÔNG commit
+secrets/
+firebase-service-account.json
+devices/esp32-firmware/include/config.h
+devices/camera-agent/config.yaml
+infra/nifi/exports/*.local.json

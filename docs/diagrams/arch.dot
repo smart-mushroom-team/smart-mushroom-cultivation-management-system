@@ -1,0 +1,49 @@
+digraph G {
+  graph [rankdir=TB, splines=true, nodesep=0.6, ranksep=0.75, fontname="DejaVu Sans", dpi=200, pad=0.2, newrank=true];
+  node  [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, margin="0.18,0.10", penwidth=1.3];
+  edge  [fontname="DejaVu Sans", fontsize=8.5, color="#44546A", fontcolor="#222222", arrowsize=0.8];
+
+  web   [label="Web App\n(ReactJS · Admin/Operator)", fillcolor="#EEF3FA", color="#5B6B88"];
+  mob   [label="Mobile App\n(Flutter · Customer)", fillcolor="#EEF3FA", color="#5B6B88"];
+  esp   [label="ESP32 + DHT22\n(thiết bị thật, WiFi)", fillcolor="#FDE3D3", color="#C0561C"];
+  cam   [label="Camera Agent\n(Python · webcam/video)", fillcolor="#FDE3D3", color="#C0561C"];
+  gw    [label="API Gateway (Python · FastAPI)\nĐiểm vào duy nhất · Định tuyến · JWT sơ bộ\nCORS · Giới hạn kích thước body", fillcolor="#DCEAF7", color="#2E75B6"];
+  idn   [label="Identity Service\nĐăng ký/Đăng nhập · JWT\nTạo Operator · Vô hiệu hóa", fillcolor="#E2EFDA", color="#548235"];
+  core  [label="Core Service\nPhòng/Khay · Gói/Đơn thuê\nĐợt nuôi · Thông báo\nExpiry Job", fillcolor="#E2EFDA", color="#548235"];
+  mon   [label="Monitoring Service\nThiết bị · Snapshot · Số liệu\nNgưỡng · Cảnh báo\nStatus Scheduler · Retention", fillcolor="#E2EFDA", color="#548235"];
+  fcm   [label="Firebase Cloud Messaging\n(dịch vụ ngoài)", fillcolor="#FFFFFF", color="#808080", style="rounded,dashed"];
+  rmq   [label="RabbitMQ\nqueue cảnh báo · queue số liệu", fillcolor="#FFE699", color="#BF9000"];
+  redis [label="Redis\nlatest snapshot · lastSeen", fillcolor="#F8CBAD", color="#C0561C"];
+  nifi  [label="Apache NiFi\nchuẩn hóa · gộp số liệu 5 phút", fillcolor="#D9D2E9", color="#6A4FA3"];
+  prom  [label="Prometheus\nthu thập /metrics", fillcolor="#FBE5D6", color="#C0561C"];
+  graf  [label="Grafana\ndashboard sức khỏe", fillcolor="#FBE5D6", color="#C0561C"];
+  pg    [label="PostgreSQL (docker-compose)\nidentity_db  |  core_db  |  monitoring_db", shape=cylinder, fillcolor="#FFF2CC", color="#BF9000"];
+
+  {rank=same; web; mob; esp; cam}
+  {rank=same; gw}
+  {rank=same; idn; core; mon}
+  {rank=same; fcm; rmq; redis; prom}
+  {rank=same; nifi; graf}
+
+  web -> gw [label="REST + JWT"];
+  mob -> gw [label="REST + JWT"];
+  esp -> gw [label="POST telemetry\n(X-Device-Key)"];
+  cam -> gw [label="POST snapshot\n(X-Device-Key)"];
+
+  gw -> idn; gw -> core; gw -> mon;
+  idn -> core [style=invis]; 
+  mon -> core [style=dashed, label="kiểm tra quyền (REST)", constraint=false];
+
+  core -> fcm [style=dashed, label="push tới Mobile"];
+  mon -> rmq [label="sự kiện cảnh báo, số liệu"];
+  rmq -> core [label="cảnh báo", constraint=false];
+  mon -> redis [style=dashed, label="latest, lastSeen"];
+  mon -> prom [style=dotted, label="scrape /metrics (cả 4 service)"];
+  rmq -> nifi [label="số liệu"];
+  graf -> prom [label="truy vấn", constraint=false];
+  fcm -> rmq [style=invis]; rmq -> redis [style=invis]; redis -> prom [style=invis];
+  nifi -> graf [style=invis];
+
+  idn -> pg; core -> pg; mon -> pg;
+  nifi -> pg [label="số liệu gộp 5 phút"];
+}

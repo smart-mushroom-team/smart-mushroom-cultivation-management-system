@@ -1,0 +1,5 @@
+# Sao chép thành config.yaml (đã nằm trong .gitignore)
+api_url: http://192.168.1.10:8000/iot/snapshot
+device_key: khoa-thiet-bi-camera
+camera_source: 0          # chỉ số webcam hoặc URL RTSP
+interval_sec: 60
