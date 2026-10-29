@@ -5,6 +5,7 @@ import datetime as dt
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 from common.db import engine
 from common.errors import AppError
@@ -42,6 +43,16 @@ def pick_trays(c, n: int) -> list[str]:
 
 @router.post("", status_code=201, summary="FR-12: Customer thuê khay")
 def create_rental(body: RentalIn, user: CurrentUser = Depends(require_roles("CUSTOMER"))):
+    try:
+        return _create_rental(body, user)
+    except IntegrityError as e:
+        # Lớp bảo vệ cuối của BR-01 (unique index một-khay-một-đơn-hiệu-lực) vừa chặn một xung đột: trả 409 thay vì 500.
+        if "rental_trays_one_active_per_tray" in str(e.orig):
+            raise AppError(409, "TRAY_CONFLICT", "Khay vừa được người khác thuê, vui lòng thử lại")
+        raise
+
+
+def _create_rental(body: RentalIn, user: CurrentUser):
     start = clock.today()
     with engine().begin() as c:
         pkg = c.execute(text("SELECT id,name,duration_days,price_per_tray FROM rental_packages WHERE id=:i AND is_active"),
