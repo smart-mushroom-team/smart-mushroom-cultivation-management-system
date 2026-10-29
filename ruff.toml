@@ -1,0 +1,9 @@
+line-length = 140
+target-version = "py312"
+extend-exclude = ["clients", "devices/esp32-firmware"]
+
+[lint]
+select = ["E", "F", "I", "W"]
+
+[lint.isort]
+known-first-party = ["common", "app"]
