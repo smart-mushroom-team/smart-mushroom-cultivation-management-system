@@ -1,4 +1,10 @@
-"""FR-07, FR-08: phòng và khay (Admin/Operator). Danh sách/tạo cơ bản; TODO: sửa, ngừng phòng (không khi còn khay RENTED), xóa khay chưa từng thuê."""
+"""FR-07, FR-08: phòng và khay (Admin/Operator).
+
+Quy tắc:
+  * Ngừng phòng (INACTIVE) bị từ chối khi phòng còn khay RENTED (409 ROOM_HAS_RENTED_TRAYS).
+  * Khay chỉ xóa được khi chưa từng thuộc đơn nào (kể cả đơn đã hoàn tất) để giữ lịch sử.
+  * Không chuyển khay sang phòng khác khi đang RENTED.
+"""
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -68,12 +74,20 @@ def update_room(room_id: str, body: RoomPatch, _=Depends(require_roles("OPERATOR
         return _room_row(c.execute(text("SELECT id,name,status FROM rooms WHERE id=:i"), {"i": room_id}).first())
 
 
+def _tray_row(r):
+    return {"id": str(r.id), "tray_code": r.tray_code, "room_id": str(r.room_id), "location_row": r.location_row,
+            "location_shelf": r.location_shelf, "location_slot": r.location_slot, "occupancy_status": r.occupancy_status}
+
+
+_TRAY_COLS = "id,tray_code,room_id,location_row,location_shelf,location_slot,occupancy_status"
+
+
 @router.get("/trays")
 def list_trays(roomId: str | None = None, _=Depends(require_roles("OPERATOR"))):
-    q = "SELECT id,tray_code,room_id,location_row,location_shelf,location_slot,occupancy_status FROM trays"
     with engine().connect() as c:
-        rows = c.execute(text(q + (" WHERE room_id=:r" if roomId else "") + " ORDER BY tray_code"), {"r": roomId})
-        return [dict(r._mapping, id=str(r.id), room_id=str(r.room_id)) for r in rows]
+        rows = c.execute(text(f"SELECT {_TRAY_COLS} FROM trays" + (" WHERE room_id=:r" if roomId else "") + " ORDER BY tray_code"),
+                         {"r": roomId})
+        return [_tray_row(r) for r in rows]
 
 
 @router.post("/trays", status_code=201)
@@ -88,11 +102,6 @@ def create_tray(body: TrayIn, _=Depends(require_roles("OPERATOR"))):
     except IntegrityError:
         raise AppError(409, "TRAY_CODE_EXISTS", "Mã khay đã tồn tại")
     return {"id": str(tid)}
-
-
-def _tray_row(r):
-    return {"id": str(r.id), "tray_code": r.tray_code, "room_id": str(r.room_id), "location_row": r.location_row,
-            "location_shelf": r.location_shelf, "location_slot": r.location_slot, "occupancy_status": r.occupancy_status}
 
 
 @router.patch("/trays/{tray_id}", summary="Sửa mã / vị trí khay (đổi phòng chỉ khi khay đang AVAILABLE)")
@@ -111,8 +120,7 @@ def update_tray(tray_id: str, body: TrayPatch, _=Depends(require_roles("OPERATOR
                               location_row=COALESCE(:a,location_row), location_shelf=COALESCE(:b,location_shelf),
                               location_slot=COALESCE(:d,location_slot) WHERE id=:i"""),
                       {"c": body.trayCode, "r": body.roomId, "a": body.row, "b": body.shelf, "d": body.slot, "i": tray_id})
-            return _tray_row(c.execute(text("SELECT id,tray_code,room_id,location_row,location_shelf,location_slot,occupancy_status FROM trays WHERE id=:i"),
-                                       {"i": tray_id}).first())
+            return _tray_row(c.execute(text(f"SELECT {_TRAY_COLS} FROM trays WHERE id=:i"), {"i": tray_id}).first())
     except IntegrityError:
         raise AppError(409, "TRAY_CODE_EXISTS", "Mã khay đã tồn tại")
 

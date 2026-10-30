@@ -1,4 +1,4 @@
-"""FR-10, FR-11: gói thuê (giá theo khay). Thay đổi gói không ảnh hưởng đơn cũ vì đơn lưu bản chụp."""
+"""FR-10, FR-11: gói thuê (giá theo khay). Sửa/tắt gói không ảnh hưởng đơn cũ vì đơn lưu bản chụp tên, thời hạn, giá."""
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -34,15 +34,15 @@ def list_packages(_: CurrentUser = Depends(current_user)):
         free = c.execute(text("SELECT count(*) FROM trays t JOIN rooms r ON r.id=t.room_id "
                               "WHERE t.occupancy_status='AVAILABLE' AND r.status='ACTIVE'")).scalar()
         rows = c.execute(text("SELECT id,name,duration_days,price_per_tray,is_active FROM rental_packages "
-                      "WHERE is_active ORDER BY duration_days"))
+                              "WHERE is_active ORDER BY duration_days"))
         return {"availableTrays": free, "packages": [_row(r) for r in rows]}
 
 
-    @router.get("/all", summary="FR-10: Admin xem tất cả gói, kể cả gói đã tắt")
-    def list_all(_=Depends(require_roles("ADMIN"))):
-        with engine().connect() as c:
+@router.get("/all", summary="FR-10: Admin xem tất cả gói, kể cả gói đã tắt")
+def list_all(_=Depends(require_roles("ADMIN"))):
+    with engine().connect() as c:
         return [_row(r) for r in c.execute(text("SELECT id,name,duration_days,price_per_tray,is_active "
-                            "FROM rental_packages ORDER BY is_active DESC, duration_days"))]
+                                                "FROM rental_packages ORDER BY is_active DESC, duration_days"))]
 
 
 @router.post("", status_code=201, summary="FR-10: Admin tạo gói")

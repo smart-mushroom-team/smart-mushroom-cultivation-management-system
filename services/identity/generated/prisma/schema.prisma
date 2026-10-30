@@ -1,0 +1,66 @@
+// Identity Service — database riêng: identity_db
+//
+// Quy ước chung cho cả 3 service (xem docs/DATABASE.md):
+//  - Khóa chính UUID do DB sinh (gen_random_uuid()) => raw SQL INSERT không cần tự sinh id.
+//  - Mọi mốc thời gian là TIMESTAMPTZ (lưu UTC). Ngày nghiệp vụ (UTC+7) dùng kiểu DATE.
+//  - updated_at có DEFAULT now() và được trigger set_updated_at() cập nhật, kể cả khi dùng raw SQL.
+//  - Các ràng buộc Prisma không biểu diễn được (CHECK, partial index, trigger) nằm trong
+//    prisma/migrations/*_init/migration.sql, phần "CUSTOM SQL". Prisma bỏ qua chúng khi so sánh schema.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  CUSTOMER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  email            String     @unique // luôn lưu chữ thường (CHECK email = lower(email))
+  passwordHash     String     @map("password_hash")
+  role             Role       @default(CUSTOMER)
+  status           UserStatus @default(ACTIVE)
+  phone            String?
+  address          String?
+  failedLoginCount Int        @default(0) @map("failed_login_count") // UC-01: sai 5 lần liên tiếp
+  lockedUntil      DateTime?  @map("locked_until") @db.Timestamptz(3) // khóa tạm 5 phút
+  lastLoginAt      DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  refreshTokens RefreshToken[]
+
+  @@index([role, status])
+  @@map("users")
+}
+
+// Không xóa người dùng (BR-15) nên không đặt onDelete: chỉ vô hiệu hóa.
+model RefreshToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") // chỉ lưu hash, không lưu token gốc
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt]) // dọn token hết hạn
+  @@map("refresh_tokens")
+}

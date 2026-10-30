@@ -1,4 +1,8 @@
-"""Fixtures for integration tests against an isolated PostgreSQL schema."""
+"""Test tích hợp chạy trên PostgreSQL thật, trong một schema tạm (không đụng dữ liệu dev).
+
+Chạy trong stack:  docker compose exec core python -m pytest -q
+Chạy ngoài Docker: đặt DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME rồi chạy pytest.
+Không có DB thì các test cần DB tự bỏ qua."""
 import os
 import pathlib
 import uuid
@@ -14,7 +18,7 @@ MIGRATIONS = pathlib.Path(__file__).resolve().parent.parent / "migrations"
 
 
 def _base_url():
-    if not os.getenv("DB_USER") or not os.getenv("DB_NAME"):
+    if not os.getenv("DB_USER"):
         return None
     return URL.create("postgresql+psycopg2", username=os.environ["DB_USER"], password=os.getenv("DB_PASSWORD"),
                       host=os.getenv("DB_HOST", "postgres"), port=int(os.getenv("DB_PORT", "5432")),
@@ -31,7 +35,7 @@ def db():
     try:
         with admin.begin() as c:
             c.execute(text(f"CREATE SCHEMA {schema}"))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:                                   # noqa: BLE001
         pytest.skip(f"không kết nối được DB: {e.__class__.__name__}")
     os.environ["DB_SCHEMA"] = schema
     from common import db as dbmod
@@ -48,6 +52,7 @@ def db():
 
 @pytest.fixture(autouse=True)
 def _clean(request):
+    """Mỗi test dùng DB trống (chỉ khi test đó dùng fixture db)."""
     if "db" not in request.fixturenames:
         yield
         return
@@ -67,8 +72,9 @@ def make_token(role: str, user_id: str | None = None, name: str = "Tester") -> d
 @pytest.fixture()
 def client(db):
     from fastapi.testclient import TestClient
+
     from app.main import app
-    return TestClient(app)
+    return TestClient(app)          # không dùng `with` nên lifespan (scheduler, RabbitMQ) không chạy
 
 
 @pytest.fixture()
@@ -86,8 +92,10 @@ def customer():
     return make_token("CUSTOMER")
 
 
+# ---------- helper dùng chung cho test nghiệp vụ ----------
 @pytest.fixture()
 def farm(client, admin, operator):
+    """1 phòng, 3 khay, 1 gói 30 ngày."""
     room = client.post("/rooms", json={"name": "P1"}, headers=operator).json()["id"]
     for i in range(3):
         client.post("/trays", json={"trayCode": f"T{i}", "roomId": room, "row": 1, "shelf": 1, "slot": i + 1}, headers=operator)
@@ -97,16 +105,18 @@ def farm(client, admin, operator):
 
 def rent(client, farm, n=1, uid=None):
     uid = uid or str(uuid.uuid4())
-    headers = make_token("CUSTOMER", uid, "Khách A")
-    response = client.post("/rentals", json={"packageId": farm["pkg"], "trayCount": n}, headers=headers)
-    assert response.status_code == 201, response.text
-    return headers, uid, response.json()
+    h = make_token("CUSTOMER", uid, "Khách A")
+    r = client.post("/rentals", json={"packageId": farm["pkg"], "trayCount": n}, headers=h)
+    assert r.status_code == 201, r.text
+    return h, uid, r.json()
 
 
 def cycles(client, operator, status="GROWING"):
     return client.get(f"/cycles?status={status}", headers=operator).json()
 
 
-def advance(client, operator, cycle_id, *stages):
-    for stage in stages:
-        assert client.patch(f"/cycles/{cycle_id}", json={"stage": stage}, headers=operator).status_code == 200
+def advance(client, operator, cid, *stages):
+    for s in stages:
+        assert client.patch(f"/cycles/{cid}", json={"stage": s}, headers=operator).status_code == 200
+
+

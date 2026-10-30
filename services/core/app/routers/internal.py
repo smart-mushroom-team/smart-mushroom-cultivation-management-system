@@ -1,4 +1,6 @@
 """Endpoint nội bộ (không qua Gateway, bảo vệ bằng khóa dịch vụ - NFR-06)."""
+import uuid
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
 
@@ -21,3 +23,15 @@ def room_access(room_id: str, customerId: str):
             WHERE r.customer_id=:c AND r.status='ACTIVE' AND r.end_date >= :today AND t.room_id=:room LIMIT 1"""),
                        {"c": customerId, "today": clock.today(), "room": room_id}).first()
     return {"allowed": ok is not None, "reason": None if ok else "Đơn thuê đã hết hạn hoặc không thuộc phòng này"}
+
+
+@router.get("/rooms/{room_id}")
+def room_info(room_id: str):
+    """Monitoring dùng khi tạo thiết bị: phòng có tồn tại và đang ACTIVE không (không có FK liên DB, BR-16)."""
+    try:
+        uuid.UUID(room_id)
+    except ValueError:
+        return {"exists": False, "active": False}
+    with engine().connect() as c:
+        st = c.execute(text("SELECT status FROM rooms WHERE id=:i"), {"i": room_id}).scalar()
+    return {"exists": st is not None, "active": st == "ACTIVE"}

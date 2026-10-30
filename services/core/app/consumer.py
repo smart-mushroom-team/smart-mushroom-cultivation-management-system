@@ -7,8 +7,8 @@ import time
 
 import pika
 
-from common.db import engine
 from common import rabbit
+from common.db import engine
 from common.events import ALERTS_QUEUE
 
 from . import notify
