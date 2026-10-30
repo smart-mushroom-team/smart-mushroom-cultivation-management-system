@@ -1,4 +1,6 @@
 """Bước 1a: CRUD phòng, khay, gói."""
+import os
+
 from sqlalchemy import text
 
 
@@ -132,7 +134,7 @@ def test_old_rental_keeps_snapshot_after_package_change(client, admin, operator,
 
 def test_internal_room_info(client, operator, monkeypatch):
     rid = _room(client, operator)
-    h = {"X-Service-Key": "test-key"}
+    h = {"X-Service-Key": os.environ["SERVICE_KEY"]}
     assert client.get(f"/internal/rooms/{rid}", headers=h).json() == {"exists": True, "active": True}
     client.patch(f"/rooms/{rid}", json={"status": "INACTIVE"}, headers=operator)
     assert client.get(f"/internal/rooms/{rid}", headers=h).json() == {"exists": True, "active": False}
