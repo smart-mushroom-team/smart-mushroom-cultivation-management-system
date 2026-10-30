@@ -125,6 +125,9 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       REDIS_URL: redis://redis:6379/0
       CORE_URL: http://core:8000
+      SNAPSHOT_DIR: /data/snapshots
+    volumes:
+      - snapshots:/data/snapshots           # ảnh camera mới nhất của mỗi phòng
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -147,3 +150,4 @@ volumes:
   pgdata:
   rabbitdata:
   nifidata:
+  snapshots:
