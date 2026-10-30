@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from sqlalchemy import text
 
 from common.db import engine

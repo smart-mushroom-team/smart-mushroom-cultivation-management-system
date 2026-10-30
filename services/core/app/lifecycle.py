@@ -36,7 +36,8 @@ def run_expiry(today) -> dict:
                 n = c.execute(text("UPDATE rentals SET status='EXPIRED' WHERE id=:i AND status='ACTIVE'"), {"i": rid}).rowcount
                 stats["expired"] += n
         except Exception:                                           # noqa: BLE001
-            log.exception("Lỗi khi hết hạn đơn %s", rid); stats["errors"] += 1
+            log.exception("Lỗi khi hết hạn đơn %s", rid)
+            stats["errors"] += 1
     for rid in set(ids) | set(pending):
         try:
             with engine().begin() as c:
@@ -48,6 +49,7 @@ def run_expiry(today) -> dict:
                                   content="Cần thu hoạch hoặc loại bỏ", dedupe_key=f"EXPIRED_GROWING:{rid}",
                                   staff=True, data={"rentalId": rid})
         except Exception:                                           # noqa: BLE001
-            log.exception("Lỗi khi hoàn tất đơn %s", rid); stats["errors"] += 1
+            log.exception("Lỗi khi hoàn tất đơn %s", rid)
+            stats["errors"] += 1
     log.info("Expiry job: %s", stats)
     return stats

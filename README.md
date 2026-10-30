@@ -77,3 +77,12 @@ tests/                   test tích hợp / đồng thời (BR-01)
 2. Nghiệp vụ lõi: Identity → Core (thuê khay, đợt nuôi, Expiry Job) → Monitoring (camera, số liệu, ngưỡng).
 3. Swagger → RabbitMQ (cảnh báo) → Prometheus/Grafana → Redis → NiFi.
 4. Web, Mobile, FCM; demo script (`docs/DEMO.md`).
+
+## Kiểm thử
+
+```bash
+make lint                                          # ruff (cấu hình ở ruff.toml)
+docker compose exec core python -m pytest -q       # test tích hợp của Core trên PostgreSQL thật, trong schema tạm
+```
+Core có test cho: CRUD phòng/khay/gói, đợt nuôi, job hết hạn, và thuê khay đồng thời (BR-01).
+Các test cần DB tự bỏ qua nếu không có biến `DB_USER`/`DB_NAME`.

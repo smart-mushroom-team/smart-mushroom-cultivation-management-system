@@ -3,7 +3,7 @@ target-version = "py312"
 extend-exclude = ["clients", "devices/esp32-firmware"]
 
 [lint]
-select = ["E", "F", "I", "W"]
+select = ["E", "F", "I", "W"]       # lỗi cú pháp/biến thừa, import, khoảng trắng; FastAPI Depends() trong tham số là bình thường
 
 [lint.isort]
 known-first-party = ["common", "app"]
