@@ -115,17 +115,35 @@ def room(core):
     return rid
 
 
+class Published(list):
+    """Danh sách (queue, message) đã gửi. fail_queues: tên queue mô phỏng RabbitMQ lỗi (publish trả False, không ghi nhận).
+    on_publish: hàm gọi ngay trước mỗi lần gửi (dùng để kiểm tra trạng thái DB tại thời điểm gửi)."""
+    def __init__(self):
+        super().__init__()
+        self.fail_queues: set[str] = set()
+        self.attempts: list = []
+        self.on_publish = None
+
+    def of(self, queue: str, type_: str | None = None):
+        return [m for q, m in self if q == queue and (type_ is None or m.get("type") == type_)]
+
+
 @pytest.fixture()
 def published(monkeypatch):
-    """Ghi lại mọi sự kiện publish thay vì gửi RabbitMQ thật. Trả list[(queue, message)]."""
-    sent: list = []
+    """Ghi lại mọi sự kiện publish thay vì gửi RabbitMQ thật."""
+    sent = Published()
 
     def fake_publish(queue, message, retries=3):
+        sent.attempts.append((queue, message))
+        if sent.on_publish:
+            sent.on_publish(queue, message)
+        if queue in sent.fail_queues:
+            return False
         sent.append((queue, message))
         return True
-    from app import jobs, thresholds
+    from app import jobs, presence, thresholds
     from app.routers import iot
-    for mod in (iot, thresholds, jobs):
+    for mod in (iot, thresholds, jobs, presence):
         if hasattr(mod, "publish"):
             monkeypatch.setattr(mod, "publish", fake_publish)
     return sent

@@ -1,1 +1,2 @@
 requests==2.32.3
+Pillow==10.4.0   # tùy chọn: để tạo ảnh camera mô phỏng; không có thì dùng ảnh mẫu nhỏ

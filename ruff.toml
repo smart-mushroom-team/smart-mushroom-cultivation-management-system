@@ -1,4 +1,4 @@
-line-length = 140
+line-length = 160
 target-version = "py312"
 extend-exclude = ["clients", "devices/esp32-firmware"]
 

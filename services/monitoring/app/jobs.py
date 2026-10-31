@@ -4,18 +4,33 @@ import logging
 from sqlalchemy import text
 
 from common.db import engine
+from common.events import ALERTS_QUEUE
+from common.rabbit import publish
 
-from . import snapshots
+from . import presence, snapshots
 
 log = logging.getLogger("jobs")
 
 
-def device_status() -> None:
-    """TODO FR-37: khi thiết bị chuyển offline -> publish alerts.events (DEVICE_OFFLINE), một lần cho mỗi lần mất kết nối."""
-    with engine().connect() as c:
-        n = c.execute(text("""SELECT count(*) FROM devices WHERE status='ACTIVE' AND last_seen_at IS NOT NULL
-                              AND now() - last_seen_at > interval_sec * 3 * interval '1 second'""")).scalar()
-    log.debug("Thiết bị offline: %s", n)
+def device_status() -> int:
+    """FR-37: thiết bị quá 3 x chu kỳ không gửi dữ liệu -> publish DEVICE_OFFLINE đúng một lần cho mỗi lần mất kết nối.
+    Chỉ đánh dấu 'đã báo' khi gửi thành công; gửi lỗi thì để nguyên và thử lại ở lần chạy sau (dedupeKey chống trùng).
+    FOR UPDATE SKIP LOCKED: hai tiến trình chạy job cùng lúc không báo trùng. Trả về số cảnh báo đã gửi."""
+    sent = 0
+    with engine().begin() as c:
+        rows = c.execute(text("""SELECT id,name,type,room_id,last_seen_at,interval_sec FROM devices
+                                 WHERE status='ACTIVE' AND last_seen_at IS NOT NULL AND offline_alerted_at IS NULL
+                                   AND now() - last_seen_at > interval_sec * :f * interval '1 second'
+                                 ORDER BY last_seen_at FOR UPDATE SKIP LOCKED"""), {"f": presence.OFFLINE_FACTOR}).all()
+        for d in rows:
+            if publish(ALERTS_QUEUE, presence.offline_event(d)):
+                c.execute(text("UPDATE devices SET offline_alerted_at=now() WHERE id=:i"), {"i": d.id})
+                sent += 1
+            else:
+                log.error("Không gửi được cảnh báo offline của %s, sẽ thử lại", d.id)
+    if sent:
+        log.info("Đã báo %s thiết bị offline", sent)
+    return sent
 
 
 def retention() -> None:
