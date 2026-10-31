@@ -5,6 +5,8 @@ from sqlalchemy import text
 
 from common.db import engine
 
+from . import snapshots
+
 log = logging.getLogger("jobs")
 
 
@@ -20,3 +22,8 @@ def retention() -> None:
     with engine().begin() as c:
         c.execute(text("DELETE FROM sensor_readings WHERE recorded_at < now() - interval '7 days'"))
         c.execute(text("DELETE FROM sensor_aggregates WHERE window_start < now() - interval '30 days'"))
+
+
+def snapshot_retention() -> None:
+    """Dọn ảnh camera quá hạn giữ (SNAPSHOT_RETENTION_HOURS, mặc định 24 giờ) để không đầy đĩa."""
+    log.info("Dọn ảnh camera: %s", snapshots.purge_old())

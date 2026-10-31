@@ -63,7 +63,7 @@ def _clean(request):
         return
     eng = request.getfixturevalue("db")
     with eng.begin() as c:
-        c.execute(text("TRUNCATE devices, sensor_readings, room_thresholds, sensor_aggregates CASCADE"))
+        c.execute(text("TRUNCATE devices, sensor_readings, room_thresholds, sensor_aggregates, camera_snapshots CASCADE"))
     yield
 
 
@@ -77,15 +77,20 @@ class FakeCore:
     def __init__(self):
         self.rooms: set[str] = set()
         self.access: set[tuple[str, str]] = set()
+        self.since: dict[tuple[str, str], str] = {}        # (room, customer) -> "YYYY-MM-DD" ngày bắt đầu đơn thuê
         self.down = False
 
     def room_exists(self, room_id):
         self._check()
         return room_id in self.rooms
 
-    def can_view_room(self, room_id, customer_id):
+    def room_access(self, room_id, customer_id):
         self._check()
-        return (room_id, customer_id) in self.access
+        ok = (room_id, customer_id) in self.access
+        return {"allowed": ok, "since": self.since.get((room_id, customer_id)) if ok else None}
+
+    def can_view_room(self, room_id, customer_id):
+        return self.room_access(room_id, customer_id)["allowed"]
 
     def _check(self):
         if self.down:
@@ -99,6 +104,7 @@ def core(monkeypatch):
     fake = FakeCore()
     monkeypatch.setattr(core_client, "room_exists", fake.room_exists)
     monkeypatch.setattr(core_client, "can_view_room", fake.can_view_room)
+    monkeypatch.setattr(core_client, "room_access", fake.room_access)
     return fake
 
 

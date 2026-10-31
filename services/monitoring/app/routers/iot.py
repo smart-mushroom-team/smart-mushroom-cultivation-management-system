@@ -77,8 +77,24 @@ def telemetry(body: Telemetry, x_device_key: str = Header(default="")):
     return {"accepted": True}
 
 
-@router.post("/snapshot", status_code=202, summary="FR-28: camera gửi ảnh JPEG mới nhất (body = ảnh, hoặc multipart field 'image')")
-async def snapshot(request: Request, x_device_key: str = Header(default="")):
+def _parse_captured_at(value: str | None) -> dt.datetime:
+    now = dt.datetime.now(dt.timezone.utc)
+    if not value:
+        return now
+    try:
+        ts = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise AppError(422, "INVALID_CAPTURED_AT", "X-Captured-At phải là thời gian ISO 8601")
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=dt.timezone.utc)
+    if ts > now + MAX_FUTURE or ts < now - MAX_AGE:
+        raise AppError(422, "INVALID_CAPTURED_AT", "X-Captured-At nằm ngoài khoảng cho phép")
+    return ts
+
+
+@router.post("/snapshot", status_code=202,
+             summary="FR-28: camera gửi ảnh JPEG (body = ảnh, hoặc multipart field 'image'); X-Captured-At (ISO 8601) tùy chọn")
+async def snapshot(request: Request, x_device_key: str = Header(default=""), x_captured_at: str | None = Header(default=None)):
     # Xác thực trước khi đọc body để khóa sai không tốn băng thông xử lý ảnh
     with engine().connect() as c:
         d = _device(c, x_device_key, "CAMERA")
@@ -97,8 +113,9 @@ async def snapshot(request: Request, x_device_key: str = Header(default="")):
         raise AppError(413, "IMAGE_TOO_LARGE", "Ảnh vượt quá 1.5 MB")
     if not data.startswith(snapshots.JPEG_MAGIC):          # không tin Content-Type: kiểm tra byte đầu của tệp
         raise AppError(415, "NOT_A_JPEG", "Dữ liệu không phải ảnh JPEG")
-    snapshots.save(str(d.room_id), data)
+    captured = _parse_captured_at(x_captured_at)
+    sid = snapshots.store(str(d.id), str(d.room_id), data, captured)
     with engine().begin() as c:
         c.execute(text("UPDATE devices SET last_seen_at=now() WHERE id=:d"), {"d": d.id})
     cache.touch(str(d.id), dt.datetime.now(dt.timezone.utc).isoformat())
-    return {"accepted": True, "bytes": len(data)}
+    return {"accepted": True, "id": sid, "bytes": len(data), "capturedAt": captured.isoformat()}
