@@ -12,7 +12,7 @@ from common.errors import AppError
 from common.events import TELEMETRY_QUEUE
 from common.rabbit import publish
 
-from .. import cache, snapshots, thresholds
+from .. import cache, presence, snapshots, thresholds
 
 router = APIRouter(prefix="/iot", tags=["iot"])
 
@@ -48,7 +48,7 @@ class Telemetry(BaseModel):
 
 
 def _device(c, key: str, want_type: str):
-    d = c.execute(text("SELECT id, room_id, type FROM devices WHERE api_key_hash=:h AND status='ACTIVE'"),
+    d = c.execute(text("SELECT id, name, room_id, type FROM devices WHERE api_key_hash=:h AND status='ACTIVE'"),
                   {"h": hashlib.sha256(key.encode()).hexdigest()}).first()
     if not d:
         raise AppError(401, "INVALID_DEVICE_KEY", "Khóa thiết bị không hợp lệ hoặc thiết bị đã tắt")
@@ -64,9 +64,12 @@ def telemetry(body: Telemetry, x_device_key: str = Header(default="")):
         d = _device(c, x_device_key, "SENSOR_NODE")
         c.execute(text("INSERT INTO sensor_readings(device_id,room_id,temperature,humidity,recorded_at) VALUES (:d,:r,:t,:h,:ts)"),
                   {"d": d.id, "r": d.room_id, "t": body.temperature, "h": body.humidity, "ts": ts})
-        c.execute(text("UPDATE devices SET last_seen_at=now() WHERE id=:d"), {"d": d.id})
-        thresholds.evaluate(c, str(d.room_id), str(d.id), body.temperature, body.humidity, ts)
-    room = str(d.room_id)
+        was_offline = presence.mark_seen(c, d.id)
+        events = thresholds.evaluate(c, str(d.room_id), str(d.id), body.temperature, body.humidity, ts)
+    room = str(d.room_id)                       # từ đây giao dịch đã commit: mới gửi cảnh báo, không giữ khóa DB khi RabbitMQ chậm
+    thresholds.publish_alerts(events)
+    if was_offline:
+        presence.announce_online(d)
     prev = cache.get_snapshot(room)
     if not prev or prev.get("recordedAt", "") <= ts.isoformat():      # gói đến trễ không được ghi đè số liệu mới hơn
         cache.set_snapshot(room, {"temperature": body.temperature, "humidity": body.humidity, "recordedAt": ts.isoformat()})
@@ -116,6 +119,8 @@ async def snapshot(request: Request, x_device_key: str = Header(default=""), x_c
     captured = _parse_captured_at(x_captured_at)
     sid = snapshots.store(str(d.id), str(d.room_id), data, captured)
     with engine().begin() as c:
-        c.execute(text("UPDATE devices SET last_seen_at=now() WHERE id=:d"), {"d": d.id})
+        was_offline = presence.mark_seen(c, d.id)
+    if was_offline:
+        presence.announce_online(d)
     cache.touch(str(d.id), dt.datetime.now(dt.timezone.utc).isoformat())
     return {"accepted": True, "id": sid, "bytes": len(data), "capturedAt": captured.isoformat()}
