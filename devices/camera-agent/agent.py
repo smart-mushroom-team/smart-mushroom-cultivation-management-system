@@ -17,7 +17,7 @@ import requests
 import yaml
 
 log = logging.getLogger("camera-agent")
-WARMUP_FRAMES = 5          # webcam thường cho vài khung đầu tối/mờ do tự cân sáng
+WARMUP_FRAMES = 5         # webcam thường cho vài khung đầu tối/mờ do tự cân sáng
 MAX_BYTES = 1_400_000      # server nhận tối đa 1.5 MB
 
 
@@ -65,14 +65,14 @@ def encode(frame, max_width: int, quality: int) -> bytes:
             raise RuntimeError("Không mã hóa được ảnh")
         if len(buf) <= MAX_BYTES or quality <= 30:
             return buf.tobytes()
-        quality -= 15                                   # ảnh quá nặng thì giảm chất lượng
+        quality -= 15                       # ảnh quá nặng thì giảm chất lượng
 
 
 def send(cfg: dict, jpeg: bytes, captured_at: dt.datetime) -> bool:
     try:
         r = requests.post(cfg["api_url"], data=jpeg, timeout=15,
                           headers={"X-Device-Key": cfg["device_key"], "Content-Type": "image/jpeg",
-                                    "X-Captured-At": captured_at.isoformat()})
+                                   "X-Captured-At": captured_at.isoformat()})
     except requests.RequestException as e:
         log.warning("Không gửi được (server chưa sẵn sàng?): %s", e.__class__.__name__)
         return False

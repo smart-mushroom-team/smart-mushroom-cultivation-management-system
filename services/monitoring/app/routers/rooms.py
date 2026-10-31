@@ -2,21 +2,6 @@
 import datetime as dt
 
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from sqlalchemy import text
-
-from common.db import engine
-from common.errors import AppError
-from common.security import CurrentUser, current_user, require_roles
-
-from .. import cache, core_client, snapshots
-
-router = APIRouter(prefix="/rooms", tags=["monitoring"])
-TZ7 = dt.timezone(dt.timedelta(hours=7))
-OFFLINE_FACTOR = 3          # offline = 3 × chu kỳ gửi (BR-11)
-
-
 def _access(room_id: str, user: CurrentUser) -> tuple[str, dt.datetime | None]:
     """Trả (room_id chuẩn, mốc thời gian sớm nhất được xem). Operator/Admin: không giới hạn. Customer: từ ngày bắt đầu
     đơn thuê hiệu lực của họ (múi giờ UTC+7), để không xem được ảnh phòng thời người thuê trước (BR-08)."""

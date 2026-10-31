@@ -115,12 +115,14 @@ def test_snapshot_raw_jpeg_saved_and_marks_camera_online(client, camera, room, s
     assert r.status_code == 202 and r.json()["bytes"] == len(JPEG)
     assert [p.read_bytes() for p in stored(snap_dir)] == [JPEG] and stored(snap_dir)[0].parent.name == room
     assert r.json()["id"] == stored(snap_dir)[0].stem
+    assert (snap_dir / f"{room}.jpg").read_bytes() == JPEG
     assert client.get(f"/devices?roomId={room}&type=CAMERA", headers=operator).json()[0]["online"] is True
 
 
 def test_snapshot_multipart(client, camera, room, snap_dir):
     r = client.post("/iot/snapshot", files={"image": ("s.jpg", JPEG, "image/jpeg")}, headers={"X-Device-Key": camera})
     assert r.status_code == 202 and [p.read_bytes() for p in stored(snap_dir)] == [JPEG]
+    assert r.status_code == 202 and (snap_dir / f"{room}.jpg").read_bytes() == JPEG
     r = client.post("/iot/snapshot", files={"khac": ("s.jpg", JPEG, "image/jpeg")}, headers={"X-Device-Key": camera})
     assert r.status_code == 422 and r.json()["error"]["code"] == "MISSING_IMAGE"
 
@@ -132,6 +134,11 @@ def test_snapshots_accumulate_history_and_latest_is_newest(client, camera, room,
     assert rows(db, "SELECT count(*) FROM camera_snapshots") == 2
     assert client.get(f"/rooms/{room}/camera/latest", headers=operator).content == JPEG2
     assert not list(snap_dir.rglob("*.tmp"))                                  # không còn tệp tạm
+def test_snapshot_overwrites_keeps_only_latest(client, camera, room, snap_dir):
+    snap(client, camera, JPEG)
+    snap(client, camera, JPEG2)
+    assert (snap_dir / f"{room}.jpg").read_bytes() == JPEG2
+    assert [p.name for p in snap_dir.iterdir()] == [f"{room}.jpg"]            # không còn tệp tạm hay bản cũ
 
 
 @pytest.mark.parametrize("data,ctype,code,err", [
@@ -144,6 +151,7 @@ def test_bad_snapshots_rejected_and_nothing_saved(client, camera, snap_dir, data
     r = snap(client, camera, data, ctype)
     assert r.status_code == code and r.json()["error"]["code"] == err
     assert stored(snap_dir) == []
+    assert not snap_dir.exists() or list(snap_dir.iterdir()) == []
 
 
 def test_snapshot_key_checks(client, sensor, camera, operator, room, snap_dir):
@@ -154,6 +162,7 @@ def test_snapshot_key_checks(client, sensor, camera, operator, room, snap_dir):
     client.patch(f"/devices/{cid}", json={"status": "INACTIVE"}, headers=operator)
     assert snap(client, camera).status_code == 401                            # camera đã tắt
     assert stored(snap_dir) == []
+    assert not snap_dir.exists() or list(snap_dir.iterdir()) == []
 
 
 # ================================================================ xem lại (kiểm tra quyền, BR-08)
@@ -191,6 +200,7 @@ def test_camera_latest_core_down_fails_closed(client, camera, room, core):
 
 
 def test_camera_latest_other_errors(client, camera, room, operator):
+def test_camera_latest_other_errors(client, camera, room, operator, snap_dir):
     assert client.get(f"/rooms/{room}/camera/latest", headers=operator).json()["error"]["code"] == "NO_SNAPSHOT"
     assert client.get(f"/rooms/{room}/camera/latest").status_code == 401
 

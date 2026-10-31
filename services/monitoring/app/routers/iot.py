@@ -47,6 +47,8 @@ class Telemetry(BaseModel):
         return self
 
 
+
+
 def _device(c, key: str, want_type: str):
     d = c.execute(text("SELECT id, room_id, type FROM devices WHERE api_key_hash=:h AND status='ACTIVE'"),
                   {"h": hashlib.sha256(key.encode()).hexdigest()}).first()
@@ -95,6 +97,8 @@ def _parse_captured_at(value: str | None) -> dt.datetime:
 @router.post("/snapshot", status_code=202,
              summary="FR-28: camera gửi ảnh JPEG (body = ảnh, hoặc multipart field 'image'); X-Captured-At (ISO 8601) tùy chọn")
 async def snapshot(request: Request, x_device_key: str = Header(default=""), x_captured_at: str | None = Header(default=None)):
+@router.post("/snapshot", status_code=202, summary="FR-28: camera gửi ảnh JPEG mới nhất (body = ảnh, hoặc multipart field 'image')")
+async def snapshot(request: Request, x_device_key: str = Header(default="")):
     # Xác thực trước khi đọc body để khóa sai không tốn băng thông xử lý ảnh
     with engine().connect() as c:
         d = _device(c, x_device_key, "CAMERA")
@@ -119,3 +123,8 @@ async def snapshot(request: Request, x_device_key: str = Header(default=""), x_c
         c.execute(text("UPDATE devices SET last_seen_at=now() WHERE id=:d"), {"d": d.id})
     cache.touch(str(d.id), dt.datetime.now(dt.timezone.utc).isoformat())
     return {"accepted": True, "id": sid, "bytes": len(data), "capturedAt": captured.isoformat()}
+    snapshots.save(str(d.room_id), data)
+    with engine().begin() as c:
+        c.execute(text("UPDATE devices SET last_seen_at=now() WHERE id=:d"), {"d": d.id})
+    cache.touch(str(d.id), dt.datetime.now(dt.timezone.utc).isoformat())
+    return {"accepted": True, "bytes": len(data)}
