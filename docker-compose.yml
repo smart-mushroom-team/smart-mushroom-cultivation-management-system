@@ -125,6 +125,10 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       REDIS_URL: redis://redis:6379/0
       CORE_URL: http://core:8000
+      SNAPSHOT_DIR: /data/snapshots
+      SNAPSHOT_RETENTION_HOURS: ${SNAPSHOT_RETENTION_HOURS:-24}     # giữ lịch sử ảnh camera bao lâu
+    volumes:
+      - snapshots:/data/snapshots           # file ảnh camera; metadata nằm ở bảng camera_snapshots (monitoring_db)
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -147,3 +151,4 @@ volumes:
   pgdata:
   rabbitdata:
   nifidata:
+  snapshots:

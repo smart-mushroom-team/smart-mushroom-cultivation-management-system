@@ -15,14 +15,17 @@ router = APIRouter(prefix="/internal", tags=["internal"], dependencies=[Depends(
 
 @router.get("/access/rooms/{room_id}")
 def room_access(room_id: str, customerId: str):
-    """BR-08: Customer xem được phòng khi có khay thuộc đơn ACTIVE còn hạn của mình. Monitoring gọi ở MỖI request, không cache."""
+    """BR-08: Customer xem được phòng khi có khay thuộc đơn ACTIVE còn hạn của mình. Monitoring gọi ở MỖI request, không cache.
+    `since` = ngày bắt đầu sớm nhất trong các đơn hiệu lực đó: Monitoring chỉ cho xem ảnh chụp từ ngày này trở đi,
+    để khách mới không xem được ảnh phòng thời người thuê trước."""
     with engine().connect() as c:
-        ok = c.execute(text("""
-            SELECT 1 FROM rentals r JOIN rental_trays rt ON rt.rental_id=r.id AND rt.is_active
+        since = c.execute(text("""
+            SELECT min(r.start_date) FROM rentals r JOIN rental_trays rt ON rt.rental_id=r.id AND rt.is_active
                  JOIN trays t ON t.id=rt.tray_id
-            WHERE r.customer_id=:c AND r.status='ACTIVE' AND r.end_date >= :today AND t.room_id=:room LIMIT 1"""),
-                       {"c": customerId, "today": clock.today(), "room": room_id}).first()
-    return {"allowed": ok is not None, "reason": None if ok else "Đơn thuê đã hết hạn hoặc không thuộc phòng này"}
+            WHERE r.customer_id=:c AND r.status='ACTIVE' AND r.end_date >= :today AND t.room_id=:room"""),
+                         {"c": customerId, "today": clock.today(), "room": room_id}).scalar()
+    return {"allowed": since is not None, "since": since.isoformat() if since else None,
+            "reason": None if since else "Đơn thuê đã hết hạn hoặc không thuộc phòng này"}
 
 
 @router.get("/rooms/{room_id}")
