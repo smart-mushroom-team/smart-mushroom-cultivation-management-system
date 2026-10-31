@@ -1,5 +1,7 @@
-# Sao chép thành config.yaml (đã nằm trong .gitignore)
-api_url: http://192.168.1.10:8000/iot/snapshot
-device_key: khoa-thiet-bi-camera
-camera_source: 0          # chỉ số webcam hoặc URL RTSP
+# Sao chép thành config.yaml (đã nằm trong .gitignore). KHÔNG commit device_key.
+api_url: http://localhost:8000/iot/snapshot     # laptop chạy Docker và agent cùng máy
+device_key: khoa-camera-do-operator-tao         # lấy từ POST /api/monitoring/devices (type=CAMERA), chỉ hiện một lần
+camera_source: 0                                # 0 = webcam mặc định của laptop; thử 1, 2 nếu có nhiều camera
 interval_sec: 60
+max_width: 1280                                 # thu nhỏ ảnh trước khi gửi
+jpeg_quality: 80

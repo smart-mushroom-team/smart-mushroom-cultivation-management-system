@@ -15,9 +15,13 @@ def _get(path: str, **params) -> dict:
         raise AppError(503, "CORE_UNAVAILABLE", "Không kết nối được dịch vụ Core, vui lòng thử lại")
 
 
+def room_access(room_id: str, customer_id: str) -> dict:
+    """BR-08: {"allowed": bool, "since": "YYYY-MM-DD" | None}. Gọi ở MỖI request, không cache."""
+    return _get(f"/access/rooms/{room_id}", customerId=customer_id)
+
+
 def can_view_room(room_id: str, customer_id: str) -> bool:
-    """BR-08: Customer xem được phòng khi có đơn ACTIVE còn hạn. Gọi ở MỖI request, không cache."""
-    return bool(_get(f"/access/rooms/{room_id}", customerId=customer_id).get("allowed"))
+    return bool(room_access(room_id, customer_id).get("allowed"))
 
 
 def room_exists(room_id: str) -> bool:

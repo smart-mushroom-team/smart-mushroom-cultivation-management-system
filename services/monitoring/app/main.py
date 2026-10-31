@@ -18,6 +18,7 @@ async def lifespan(_):
     run_migrations(pathlib.Path(__file__).resolve().parent.parent / "migrations")
     scheduler.add_job(jobs.device_status, "interval", seconds=10, id="device-status")
     scheduler.add_job(jobs.retention, "cron", hour=3, id="retention")
+    scheduler.add_job(jobs.snapshot_retention, "interval", minutes=30, id="snapshot-retention")
     scheduler.start()
     yield
     scheduler.shutdown(wait=False)
