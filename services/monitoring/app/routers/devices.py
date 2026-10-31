@@ -92,11 +92,15 @@ def update_device(device_id: str, body: DevicePatch):
     device_id = _uuid(device_id)
     try:
         with engine().begin() as c:
-            n = c.execute(text("""UPDATE devices SET name=COALESCE(:n,name), interval_sec=COALESCE(:i,interval_sec),
-                                  status=COALESCE(:s,status) WHERE id=:d"""),
-                          {"n": body.name, "i": body.intervalSec, "s": body.status, "d": device_id}).rowcount
-            if n == 0:
+            cur = c.execute(text("SELECT status FROM devices WHERE id=:d FOR UPDATE"), {"d": device_id}).first()
+            if cur is None:
                 raise AppError(404, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại")
+            c.execute(text("""UPDATE devices SET name=COALESCE(:n,name), interval_sec=COALESCE(:i,interval_sec),
+                              status=COALESCE(:s,status) WHERE id=:d"""),
+                      {"n": body.name, "i": body.intervalSec, "s": body.status, "d": device_id})
+            if body.status == "ACTIVE" and cur.status != "ACTIVE":
+                # Bật lại: phải gửi dữ liệu lần đầu mới bị coi là có thể offline (không báo ngay theo last_seen cũ từ trước khi tắt)
+                c.execute(text("UPDATE devices SET last_seen_at=NULL, offline_alerted_at=NULL WHERE id=:d"), {"d": device_id})
             return _view(c.execute(text(f"SELECT {_COLS} FROM devices WHERE id=:d"), {"d": device_id}).first())
     except IntegrityError:
         raise AppError(409, "DEVICE_EXISTS_IN_ROOM", "Phòng này đã có thiết bị cùng loại đang hoạt động")
