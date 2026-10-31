@@ -116,3 +116,10 @@ def test_roles(client, operator, admin, customer, room):
 def test_wrong_or_missing_key(client):
     assert send(client, "sai-khoa").status_code == 401
     assert client.post("/iot/telemetry", json={"temperature": 1, "humidity": 1}).status_code == 401
+
+
+def test_api_key_format_is_cli_safe(client, operator, room):
+    d = create(client, operator, room).json()
+    assert d["apiKey"].startswith("mk_") and len(d["apiKey"]) >= 40
+    rotated = client.post(f"/devices/{d['id']}/rotate-key", headers=operator).json()["apiKey"]
+    assert rotated.startswith("mk_") and rotated != d["apiKey"]

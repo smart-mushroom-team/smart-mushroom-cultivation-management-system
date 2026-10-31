@@ -1,4 +1,5 @@
 """Bước 1b: đợt nuôi - danh sách, tiến độ, thu hoạch, loại bỏ, tự hoàn tất đơn."""
+import os
 import uuid
 
 from conftest import advance, cycles, make_token, rent  # noqa: F401  (farm là fixture trong conftest)
@@ -152,3 +153,25 @@ def test_freed_trays_can_be_rented_again(client, farm, operator, db):
     for c_ in cycles(client, operator):
         client.post(f"/cycles/{c_['id']}/discard", json={"reason": "x"}, headers=operator)
     assert client.post("/rentals", json={"packageId": farm["pkg"], "trayCount": 3}, headers=make_token("CUSTOMER")).status_code == 201
+
+
+# ---------------------------------------------------------------- quyền xem phòng (Monitoring gọi sang)
+def test_internal_access_returns_rental_start_as_since(client, farm, db):
+    import datetime as dt
+    h, uid, r = rent(client, farm)
+    sk = {"X-Service-Key": os.environ["SERVICE_KEY"]}
+    out = client.get(f"/internal/access/rooms/{farm['room']}", params={"customerId": uid}, headers=sk).json()
+    assert out["allowed"] is True and out["since"] == r["startDate"]
+    # khách có 2 đơn trong cùng phòng: since là ngày bắt đầu SỚM nhất
+    with db.begin() as c:
+        c.execute(text("UPDATE rentals SET start_date = start_date - 10"))
+    rent(client, farm, 1, uid)
+    out = client.get(f"/internal/access/rooms/{farm['room']}", params={"customerId": uid}, headers=sk).json()
+    assert out["since"] == (dt.date.fromisoformat(r["startDate"]) - dt.timedelta(days=10)).isoformat()
+    # hết hạn thì mất quyền ngay
+    with db.begin() as c:
+        c.execute(text("UPDATE rentals SET status='EXPIRED'"))
+    out = client.get(f"/internal/access/rooms/{farm['room']}", params={"customerId": uid}, headers=sk).json()
+    assert out["allowed"] is False and out["since"] is None
+    other = client.get(f"/internal/access/rooms/{farm['room']}", params={"customerId": str(uuid.uuid4())}, headers=sk).json()
+    assert other["allowed"] is False

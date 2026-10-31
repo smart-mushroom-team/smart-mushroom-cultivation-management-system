@@ -82,6 +82,10 @@ def test_expired_without_growing_cycle_completes_immediately(client, farm, opera
     assert count(db, "SELECT count(*) FROM trays WHERE occupancy_status='RENTED'") == 0
     assert count(db, "SELECT count(*) FROM rental_trays WHERE is_active") == 0
     assert count(db, "SELECT count(*) FROM notifications WHERE type='RENTAL_EXPIRED_GROWING'") == 0   # không còn gì dang dở
+    # khách được báo đơn hoàn tất đúng một lần, kể cả khi job chạy lại
+    assert count(db, f"SELECT count(*) FROM notifications WHERE type='RENTAL_COMPLETED' AND recipient_user_id='{uid}'") == 1
+    lifecycle.run_expiry(D(2030, 1, 3))
+    assert count(db, "SELECT count(*) FROM notifications WHERE type='RENTAL_COMPLETED'") == 1
 
 
 # ---------------------------------------------------------------- chạy bù, idempotent, cô lập lỗi

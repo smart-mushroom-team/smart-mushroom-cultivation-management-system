@@ -6,6 +6,7 @@ Chạy NGOÀI Docker (container khó truy cập webcam trên Windows):
     copy devices\\camera-agent\\config.example.yaml devices\\camera-agent\\config.yaml   (rồi điền device_key)
     python devices/camera-agent/agent.py [đường dẫn config.yaml]
 Dừng bằng Ctrl+C."""
+import datetime as dt
 import logging
 import pathlib
 import sys
@@ -67,10 +68,11 @@ def encode(frame, max_width: int, quality: int) -> bytes:
         quality -= 15                                   # ảnh quá nặng thì giảm chất lượng
 
 
-def send(cfg: dict, jpeg: bytes) -> bool:
+def send(cfg: dict, jpeg: bytes, captured_at: dt.datetime) -> bool:
     try:
         r = requests.post(cfg["api_url"], data=jpeg, timeout=15,
-                          headers={"X-Device-Key": cfg["device_key"], "Content-Type": "image/jpeg"})
+                          headers={"X-Device-Key": cfg["device_key"], "Content-Type": "image/jpeg",
+                                    "X-Captured-At": captured_at.isoformat()})
     except requests.RequestException as e:
         log.warning("Không gửi được (server chưa sẵn sàng?): %s", e.__class__.__name__)
         return False
@@ -90,10 +92,11 @@ def main() -> None:
     while True:
         started = time.monotonic()
         frame = grab(cfg["camera_source"])
+        captured_at = dt.datetime.now(dt.timezone.utc)      # gửi kèm thời điểm chụp thật, kể cả khi mạng chậm
         if frame is None:
             log.warning("Không mở được camera (đang bị ứng dụng khác dùng hoặc sai camera_source?)")
         else:
-            send(cfg, encode(frame, cfg["max_width"], cfg["jpeg_quality"]))
+            send(cfg, encode(frame, cfg["max_width"], cfg["jpeg_quality"]), captured_at)
         time.sleep(max(1.0, cfg["interval_sec"] - (time.monotonic() - started)))
 
 
