@@ -38,7 +38,7 @@ def run_expiry(today) -> dict:
         except Exception:                                           # noqa: BLE001
             log.exception("Lỗi khi hết hạn đơn %s", rid)
             stats["errors"] += 1
-    pushes = []
+    pushes, staff_pushes = [], []
     for rid in set(ids) | set(pending):
         try:
             with engine().begin() as c:
@@ -52,13 +52,16 @@ def run_expiry(today) -> dict:
                         pushes.append((uid, t, b))
                 elif c.execute(text("SELECT status FROM rentals WHERE id=:i"), {"i": rid}).scalar() == "EXPIRED":
                     # FR-23: còn đợt GROWING -> thông báo Operator đúng một lần (dedupeKey)
-                    notify.create(c, type="RENTAL_EXPIRED_GROWING", title="Đơn hết hạn còn đợt nuôi dang dở",
-                                  content="Cần thu hoạch hoặc loại bỏ", dedupe_key=f"EXPIRED_GROWING:{rid}",
-                                  staff=True, data={"rentalId": rid})
+                    if notify.create(c, type="RENTAL_EXPIRED_GROWING", title="Đơn hết hạn còn đợt nuôi dang dở",
+                                     content="Cần thu hoạch hoặc loại bỏ", dedupe_key=f"EXPIRED_GROWING:{rid}",
+                                     staff=True, data={"rentalId": rid}):
+                        staff_pushes.append(rid)
         except Exception:                                           # noqa: BLE001
             log.exception("Lỗi khi hoàn tất đơn %s", rid)
             stats["errors"] += 1
     for uid, t, b in pushes:                                        # push sau commit, lỗi FCM không làm hỏng job
         notify.push_to_user(uid, t, b)
+    for rid in staff_pushes:
+        notify.push_to_staff("Đơn hết hạn còn đợt nuôi dang dở", "Cần thu hoạch hoặc loại bỏ", {"type": "RENTAL_EXPIRED_GROWING", "rentalId": rid})
     log.info("Expiry job: %s", stats)
     return stats

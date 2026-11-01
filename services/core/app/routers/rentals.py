@@ -84,6 +84,7 @@ def _create_rental(body: RentalIn, user: CurrentUser):
                       content=f"{user.name} thuê {body.trayCount} khay", dedupe_key=f"NEW_RENTAL:{rid}",
                       staff=True, data={"rentalId": str(rid)})
     notify.push_to_user(user.id, "Thuê khay thành công", f"{body.trayCount} khay, đến hết {end:%d/%m/%Y}")   # sau commit (BR-18)
+    notify.push_to_staff("Có đơn thuê mới", f"{user.name} thuê {body.trayCount} khay", {"type": "NEW_RENTAL", "rentalId": str(rid)})
     return {"id": str(rid), "status": "ACTIVE", "startDate": start.isoformat(), "endDate": end.isoformat(),
             "totalAmount": float(total), "trayIds": tray_ids}
 
