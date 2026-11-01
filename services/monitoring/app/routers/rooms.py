@@ -3,7 +3,7 @@ import datetime as dt
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from common.db import engine
@@ -65,11 +65,11 @@ def chart(room_id: str, hours: int = 24, user: CurrentUser = Depends(current_use
 
 
 class ThresholdIn(BaseModel):
-    tempMin: float
-    tempMax: float
-    humMin: float
-    humMax: float
-    consecutiveN: int = 3
+    tempMin: float = Field(ge=-40, le=85)
+    tempMax: float = Field(ge=-40, le=85)
+    humMin: float = Field(ge=0, le=100)
+    humMax: float = Field(ge=0, le=100)
+    consecutiveN: int = Field(default=3, ge=1, le=100)
 
 
 @router.put("/{room_id}/thresholds", summary="FR-38: Operator/Admin đặt ngưỡng")
@@ -78,9 +78,11 @@ def set_thresholds(room_id: str, b: ThresholdIn, _=Depends(require_roles("OPERAT
     if b.tempMin >= b.tempMax or b.humMin >= b.humMax:
         raise AppError(422, "INVALID_THRESHOLD", "Giá trị nhỏ nhất phải nhỏ hơn giá trị lớn nhất")
     with engine().begin() as c:
+        # Đổi ngưỡng thì xóa bộ đếm và cờ cảnh báo: các lần đọc trước đó được đánh giá theo ngưỡng cũ, không còn ý nghĩa
         c.execute(text("""INSERT INTO room_thresholds(room_id,temp_min,temp_max,hum_min,hum_max,consecutive_n)
                           VALUES (:r,:a,:b,:c,:d,:n) ON CONFLICT (room_id) DO UPDATE SET temp_min=:a,temp_max=:b,
-                          hum_min=:c,hum_max=:d,consecutive_n=:n"""),
+                          hum_min=:c,hum_max=:d,consecutive_n=:n,temp_breach_cnt=0,hum_breach_cnt=0,
+                          temp_alerting=false,hum_alerting=false"""),
                   {"r": room_id, "a": b.tempMin, "b": b.tempMax, "c": b.humMin, "d": b.humMax, "n": b.consecutiveN})
     return {"ok": True}
 
