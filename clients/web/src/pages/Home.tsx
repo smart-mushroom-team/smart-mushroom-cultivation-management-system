@@ -1,0 +1,2 @@
+import { useAuth } from '../auth/AuthContext'
+export function Home() { const { session } = useAuth(); return <section><h1>Tổng quan</h1><p>Xin chào, {session?.name}.</p><p className="muted">Các chức năng quản lý sẽ được bổ sung trong những bước tiếp theo.</p></section> }
