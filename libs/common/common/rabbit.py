@@ -38,3 +38,19 @@ def publish(queue: str, message: dict, retries: int = 3) -> bool:
             time.sleep(0.5 * attempt)
     log.error("Bỏ qua sự kiện sau %d lần thử: %s", retries, message)
     return False
+
+
+def declare(*queues: str, retries: int = 3) -> bool:
+    """Khai báo trước các hàng đợi bền để bên nhận (ví dụ NiFi ConsumeAMQP) nối vào được ngay cả khi chưa có tin nào.
+    Không bao giờ ném lỗi: RabbitMQ chưa sẵn sàng thì ghi log, tới lần publish đầu tiên hàng đợi vẫn được tạo."""
+    for attempt in range(1, retries + 1):
+        try:
+            with pika.BlockingConnection(params()) as conn:
+                ch = conn.channel()
+                for q in queues:
+                    ch.queue_declare(queue=q, durable=True)
+            return True
+        except Exception as exc:        # noqa: BLE001
+            log.warning("khai báo hàng đợi %s lần %d thất bại: %s", ", ".join(queues), attempt, exc)
+            time.sleep(2 * attempt)
+    return False

@@ -55,6 +55,7 @@ services:
       SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_PASSWORD}
       NIFI_JVM_HEAP_INIT: 512m
       NIFI_JVM_HEAP_MAX: 1g
+      NIFI_WEB_PROXY_HOST: localhost:8443,127.0.0.1:8443        # truy cập https://localhost:8443 không bị báo "invalid host header"
     ports: ["8443:8443"]
     volumes:
       - ./infra/nifi/drivers:/opt/nifi/nifi-current/drivers:ro      # đặt postgresql-*.jar vào đây
@@ -133,6 +134,24 @@ services:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
       redis: { condition: service_healthy }
+
+  # DỰ PHÒNG cho luồng NiFi (không chạy mặc định): gộp telemetry.events bằng đúng câu SQL của NiFi.
+  # docker compose --profile fallback up -d aggregator    (chạy cùng NiFi cũng không đếm đôi, hai bên chia nhau tin)
+  aggregator:
+    profiles: ["fallback"]
+    build: { context: ., dockerfile: services/monitoring/Dockerfile }
+    command: ["python", "-m", "app.aggregator"]
+    environment:
+      DB_USER: nifi_user                  # cùng quyền tối thiểu như NiFi: chỉ ghi sensor_aggregates
+      DB_PASSWORD: ${NIFI_DB_PASSWORD}
+      DB_NAME: monitoring_db
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    depends_on:
+      monitoring: { condition: service_started }      # monitoring chạy migration tạo bảng
+      rabbitmq: { condition: service_healthy }
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 128m } } }
 
   gateway:
     build: { context: ., dockerfile: services/gateway/Dockerfile }

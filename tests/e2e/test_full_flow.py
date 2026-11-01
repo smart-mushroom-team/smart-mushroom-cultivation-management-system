@@ -7,7 +7,8 @@ Phần hết hạn đơn chỉ chạy khi DEMO_MODE=true.
 
 Kịch bản: Customer thuê khay -> Operator tạo thiết bị mô phỏng ở phòng đó -> số liệu và ảnh về Customer -> vượt ngưỡng thì
 RabbitMQ đưa cảnh báo sang Core -> thông báo tới Operator -> thiết bị im lặng thì báo offline, gửi lại thì báo online ->
-phân quyền giữa các khách -> cập nhật tiến độ/thu hoạch -> hết hạn đơn thì khách mất quyền xem phòng -> đăng ký/hủy token FCM.
+phân quyền giữa các khách -> cập nhật tiến độ/thu hoạch -> hết hạn đơn thì khách mất quyền xem phòng -> đăng ký/hủy token FCM ->
+gộp 5 phút lên biểu đồ (nếu có NiFi/aggregator).
 Dữ liệu tạo ra có tiền tố 'E2E' trong tên/email; test không xóa dữ liệu."""
 import datetime as dt
 import importlib
@@ -255,3 +256,30 @@ def test_12_push_token_register_test_push_and_unregister():
     after = api("post", f"{base}/test-push", S["cust_a"], 200).json()
     assert after["registeredTokens"] == r["registeredTokens"] - 1
     assert api("post", f"{base}/test-push", None).status_code == 401              # phải đăng nhập
+
+
+# ================================================================ 8. gộp 5 phút (NiFi hoặc aggregator dự phòng)
+def test_13_five_minute_aggregates_reach_the_chart():
+    """Số đo -> RabbitMQ telemetry.events -> NiFi (hoặc `make aggregator`) -> sensor_aggregates -> API biểu đồ (FR-35, FR-53).
+    Cần NiFi đã dựng luồng (`make nifi-flow`) hoặc aggregator dự phòng đang chạy; không thấy ai ghi thì bỏ qua.
+    Đặt E2E_NEED_AGGREGATE=1 để biến việc "không thấy" thành lỗi (ví dụ khi kiểm NiFi trước buổi demo)."""
+    need("room", "sensor")
+
+    def total():
+        pts = api("get", f"/api/monitoring/rooms/{S['room']}/chart?hours=2", S["admin"], 200).json()
+        return sum(p["n"] for p in pts), pts
+
+    before, _ = total()
+    res = run_sim([S["sensor"]], "--sensor", "x", "--count", "6")
+    assert res["ok"] == 6
+    try:
+        wait_for(lambda: total()[0] >= before + 6, 45, "số liệu gộp 5 phút xuất hiện trên biểu đồ", every=3)
+    except pytest.fail.Exception:
+        if os.getenv("E2E_NEED_AGGREGATE") == "1":
+            raise
+        pytest.skip("không có NiFi/aggregator ghi sensor_aggregates (chạy `make nifi-flow` hoặc `make aggregator`)")
+    time.sleep(6)
+    after, points = total()
+    assert after == before + 6                                       # đúng 6 lần đo, không đếm đôi dù có cả NiFi lẫn aggregator
+    assert all(20 <= p["temp"] <= 40 and 60 <= p["hum"] <= 100 for p in points if p["temp"] is not None and p["hum"] is not None)
+    assert all(p["tempMin"] <= p["temp"] <= p["tempMax"] for p in points if p["temp"] is not None)

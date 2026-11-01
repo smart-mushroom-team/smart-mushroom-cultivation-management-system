@@ -54,14 +54,19 @@ def latest(room_id: str, user: CurrentUser = Depends(current_user)):
     return {"snapshot": snap, "deviceOnline": online}
 
 
-@router.get("/{room_id}/chart", summary="FR-35: biểu đồ từ bảng tổng hợp do NiFi ghi")
+@router.get("/{room_id}/chart", summary="FR-35: biểu đồ từ bảng tổng hợp 5 phút do NiFi ghi")
 def chart(room_id: str, hours: int = 24, user: CurrentUser = Depends(current_user)):
+    """Mỗi điểm là một cửa sổ 5 phút (UTC). temp/hum là null nếu cửa sổ đó không có giá trị tương ứng; n là số lần đo trong cửa sổ."""
     room_id = _authorize(room_id, user)
     with engine().connect() as c:
-        rows = c.execute(text("""SELECT window_start, avg_temp, avg_hum FROM sensor_aggregates
+        rows = c.execute(text("""SELECT window_start, avg_temp, avg_hum, min_temp, max_temp, min_hum, max_hum, sample_count
+                                 FROM sensor_aggregates
                                  WHERE room_id=:r AND window_start >= now() - make_interval(hours => :h)
-                                 ORDER BY window_start"""), {"r": room_id, "h": min(hours, 24 * 30)})
-        return [{"t": r.window_start.isoformat(), "temp": float(r.avg_temp), "hum": float(r.avg_hum)} for r in rows]
+                                 ORDER BY window_start"""), {"r": room_id, "h": max(1, min(hours, 24 * 30))})
+        f = lambda v: None if v is None else float(v)       # noqa: E731
+        return [{"t": r.window_start.isoformat(), "temp": f(r.avg_temp), "hum": f(r.avg_hum),
+                 "tempMin": f(r.min_temp), "tempMax": f(r.max_temp), "humMin": f(r.min_hum), "humMax": f(r.max_hum),
+                 "n": r.sample_count} for r in rows]
 
 
 class ThresholdIn(BaseModel):
