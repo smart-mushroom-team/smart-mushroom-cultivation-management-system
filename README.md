@@ -76,7 +76,7 @@ tests/                   test tích hợp / đồng thời (BR-01)
 1. Spike: ESP32 → Gateway → Monitoring → ghi DB (rủi ro mạng, làm ngay tuần đầu).
 2. Nghiệp vụ lõi: Identity → Core (thuê khay, đợt nuôi, Expiry Job) → Monitoring (camera, số liệu, ngưỡng).
 3. Swagger → RabbitMQ (cảnh báo) → Prometheus/Grafana → Redis → NiFi.
-4. Web, Mobile, FCM; demo script (`docs/DEMO.md`).
+4. Web, Mobile; demo script (`docs/DEMO.md`). Cách bật và kiểm tra FCM: `docs/FCM.md`.
 
 ## Kiểm thử
 

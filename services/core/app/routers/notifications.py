@@ -1,17 +1,21 @@
 """FR-42, FR-43: thông báo trong ứng dụng + đăng ký FCM token."""
+from typing import Literal
+
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from common.db import engine
 from common.security import CurrentUser, current_user
 
+from .. import notify
+
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
 class TokenIn(BaseModel):
-    token: str
-    platform: str = "android"
+    token: str = Field(min_length=8, max_length=4096)
+    platform: Literal["android", "ios", "web"] = "android"
 
 
 @router.get("", summary="Danh sách thông báo của tôi (Customer: gửi riêng; Operator/Admin: theo vai trò STAFF)")
@@ -36,11 +40,19 @@ def mark_read(nid: str, user: CurrentUser = Depends(current_user)):
 
 @router.post("/device-tokens", summary="FR-43: đăng ký FCM token sau đăng nhập")
 def register_token(body: TokenIn, user: CurrentUser = Depends(current_user)):
+    # Role đi theo token: staff đăng xuất, khách đăng nhập trên cùng máy thì token chuyển sang khách và không còn nhận cảnh báo hạ tầng.
     with engine().begin() as c:
-        c.execute(text("""INSERT INTO device_tokens(user_id,token,platform) VALUES (:u,:t,:p)
-                          ON CONFLICT (token) DO UPDATE SET user_id=EXCLUDED.user_id"""),
-                  {"u": user.id, "t": body.token, "p": body.platform})
+        c.execute(text("""INSERT INTO device_tokens(user_id,token,platform,role) VALUES (:u,:t,:p,:r)
+                          ON CONFLICT (token) DO UPDATE SET user_id=EXCLUDED.user_id, role=EXCLUDED.role, platform=EXCLUDED.platform"""),
+                  {"u": user.id, "t": body.token, "p": body.platform, "r": user.role})
     return {"ok": True}
+
+
+@router.post("/test-push", summary="Gửi thử một push tới các thiết bị đã đăng ký của chính tôi (kiểm tra FCM)")
+def test_push(user: CurrentUser = Depends(current_user)):
+    registered = notify.registered_tokens(user.id)
+    sent = notify.push_to_user(user.id, "Thông báo thử", "Nếu thấy dòng này thì FCM đã hoạt động", {"type": "TEST"}) if registered else 0
+    return {"registeredTokens": registered, "sent": sent, "dryRun": notify.dry_run()}
 
 
 @router.delete("/device-tokens/{token}", summary="FR-43: hủy đăng ký khi đăng xuất")

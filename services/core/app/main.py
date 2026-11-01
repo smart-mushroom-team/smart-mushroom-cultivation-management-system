@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from common.app_factory import create_app
 from common.migrate import run_migrations
 
-from . import clock, consumer, lifecycle
+from . import clock, consumer, lifecycle, notify
 from .routers import cycles, demo, internal, notifications, packages, rentals, rooms
 
 log = logging.getLogger("core")
@@ -20,6 +20,7 @@ async def lifespan(_):
     run_migrations(pathlib.Path(__file__).resolve().parent.parent / "migrations")
     scheduler.add_job(lambda: lifecycle.run_expiry(clock.today()), "cron", hour=0, minute=0, id="expiry")   # FR-22
     scheduler.start()
+    log.info(notify.describe_mode())
     consumer.start()
     yield
     scheduler.shutdown(wait=False)

@@ -7,7 +7,7 @@ Phần hết hạn đơn chỉ chạy khi DEMO_MODE=true.
 
 Kịch bản: Customer thuê khay -> Operator tạo thiết bị mô phỏng ở phòng đó -> số liệu và ảnh về Customer -> vượt ngưỡng thì
 RabbitMQ đưa cảnh báo sang Core -> thông báo tới Operator -> thiết bị im lặng thì báo offline, gửi lại thì báo online ->
-phân quyền giữa các khách -> cập nhật tiến độ/thu hoạch -> hết hạn đơn thì khách mất quyền xem phòng.
+phân quyền giữa các khách -> cập nhật tiến độ/thu hoạch -> hết hạn đơn thì khách mất quyền xem phòng -> đăng ký/hủy token FCM.
 Dữ liệu tạo ra có tiền tố 'E2E' trong tên/email; test không xóa dữ liệu."""
 import datetime as dt
 import importlib
@@ -238,3 +238,20 @@ def test_11_expiry_removes_customer_access():
         assert api("get", f"/api/monitoring/rooms/{S['room']}/latest", S["admin"], 200)           # Operator/Admin vẫn xem được
     finally:
         api("put", "/api/core/demo/date", S["admin"], json={"date": None})
+
+
+# ================================================================ 7. thông báo đẩy (FCM)
+def test_12_push_token_register_test_push_and_unregister():
+    """Ứng dụng đăng ký token sau đăng nhập, test-push chạm tới đúng thiết bị của mình, hủy khi đăng xuất.
+    FCM_DRY_RUN=true: push chỉ ghi log nên `sent` bằng số token. Khi gửi thật bằng token giả, FCM từ chối nên không kiểm `sent`."""
+    token = f"e2e-token-{uuid.uuid4().hex[:16]}"
+    base = "/api/core/notifications"
+    api("post", f"{base}/device-tokens", S["cust_a"], 200, json={"token": token, "platform": "android"})
+    r = api("post", f"{base}/test-push", S["cust_a"], 200).json()
+    assert r["registeredTokens"] >= 1
+    if r["dryRun"]:
+        assert r["sent"] == r["registeredTokens"]
+    api("delete", f"{base}/device-tokens/{token}", S["cust_a"], 200)
+    after = api("post", f"{base}/test-push", S["cust_a"], 200).json()
+    assert after["registeredTokens"] == r["registeredTokens"] - 1
+    assert api("post", f"{base}/test-push", None).status_code == 401              # phải đăng nhập
