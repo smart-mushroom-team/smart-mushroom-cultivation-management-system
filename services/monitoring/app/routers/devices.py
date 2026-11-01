@@ -41,7 +41,7 @@ class DevicePatch(BaseModel):
 
 
 def _new_key() -> tuple[str, str]:
-    key = secrets.token_urlsafe(32)
+    key = "mk_" + secrets.token_urlsafe(32)         # tiền tố cố định: không bao giờ bắt đầu bằng "-" (tránh bị CLI hiểu nhầm là tùy chọn)
     return key, hashlib.sha256(key.encode()).hexdigest()
 
 

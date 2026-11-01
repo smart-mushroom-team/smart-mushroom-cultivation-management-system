@@ -86,3 +86,10 @@ docker compose exec core python -m pytest -q       # test tích hợp của Core
 ```
 Core có test cho: CRUD phòng/khay/gói, đợt nuôi, job hết hạn, và thuê khay đồng thời (BR-01).
 Các test cần DB tự bỏ qua nếu không có biến `DB_USER`/`DB_NAME`.
+
+**Test toàn luồng** (cần stack đang chạy): `make e2e` (khoảng 1 phút; `make e2e E2E_FAST=1` bỏ phần chờ offline/online).
+Test đi qua Gateway thật: khách thuê khay → Operator tạo thiết bị mô phỏng → số đo và ảnh tới khách → khách khác bị chặn →
+vượt ngưỡng đi qua RabbitMQ tới Core → thiết bị offline/online → đợt nuôi → hết hạn thì khách mất quyền xem phòng.
+Cần `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` trong `.env`. Chạy lặp nhiều lần trên cùng DB vẫn đúng.
+
+**Giả lập thiết bị** (dùng chung với thiết bị thật, cùng API): xem `docs/DEMO.md`.
