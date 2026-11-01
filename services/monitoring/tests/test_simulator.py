@@ -145,7 +145,8 @@ def test_count_is_per_run_when_devices_are_reused(router, client, operator, room
     key = make_key(client, operator, rooms[0])
     dev = sensor(key)
     for _ in range(3):
-        run_sim(router, [dev], "--sensor", "x", "--count", "4")
+        res, *_ = run_sim(router, [dev], "--sensor", "x", "--count", "4")
+        assert res == {"ok": 4, "rejected": 0, "skipped": 0, "errors": 0}         # tổng kết của lượt này, không cộng dồn
     assert count(db, "SELECT count(*) FROM sensor_readings") == 12 and dev.stats["ok"] == 12
 
 

@@ -1,4 +1,4 @@
-.PHONY: up down logs ps build test lint seed demo-expire keys e2e simulate
+.PHONY: up down logs ps build test lint seed demo-expire keys e2e simulate nifi-driver nifi-flow aggregator test-infra
 
 up:            ## dựng toàn bộ hệ thống
 	docker compose up -d --build
@@ -14,7 +14,7 @@ ps:
 
 test:          ## chạy test của cả ba service + gateway
 	for s in gateway identity core monitoring; do \
-	  (cd services/$$s && PYTHONPATH=../../libs python -m pytest -q) || exit 1; \
+	  (cd services/$$s && PYTHONPATH=../../libs/common:. python -m pytest -q) || exit 1; \
 	done
 
 lint:
@@ -31,3 +31,15 @@ e2e:           ## test toàn luồng trên stack đang chạy (cần make up). B
 
 simulate:      ## giả lập cảm biến cho mọi phòng. Ví dụ: make simulate ARGS="--profile hot --with-camera"
 	set -a; . ./.env; set +a; SIM_PASSWORD=$$SEED_ADMIN_PASSWORD python devices/simulator/simulate_devices.py --email $$SEED_ADMIN_EMAIL --all-rooms $(ARGS)
+
+nifi-driver:   ## tải driver JDBC PostgreSQL cho NiFi (một lần, trước make up)
+	python infra/nifi/download_driver.py
+
+nifi-flow:     ## dựng luồng NiFi gộp 5 phút (sau make up và khi NiFi đã khởi động, lần đầu 1-3 phút). Dựng lại: make nifi-flow ARGS=--recreate
+	python infra/nifi/provision_flow.py $(ARGS)
+
+aggregator:    ## chạy aggregator DỰ PHÒNG thay NiFi (cùng câu SQL), ví dụ khi NiFi chưa dựng xong
+	docker compose --profile fallback up -d --build aggregator
+
+test-infra:    ## test script NiFi (dùng NiFi giả, không cần Docker)
+	python -m pytest tests/nifi -q

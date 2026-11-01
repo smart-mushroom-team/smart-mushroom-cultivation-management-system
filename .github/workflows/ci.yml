@@ -31,6 +31,20 @@ jobs:
       - run: ruff check libs services
       - run: PYTHONPATH=../../libs/common:. python -m pytest -q
         working-directory: services/${{ matrix.service }}
+  tools:                           # thư viện dùng chung, script NiFi (chạy với NiFi giả), simulator, test e2e: lint toàn repo
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-secret-ci-secret-ci-secret-123
+      SERVICE_KEY: ci-service-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ruff pytest requests -r services/monitoring/requirements.txt
+      - run: ruff check .
+      - run: PYTHONPATH=. python -m pytest -q
+        working-directory: libs/common
+      - run: python -m pytest tests/nifi -q
   compose-config:
     runs-on: ubuntu-latest
     steps:

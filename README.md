@@ -41,6 +41,9 @@ make up                         # = docker compose up -d --build
 
 PostgreSQL và Redis **không** publish cổng ra ngoài (SRS 2.6). Migration của từng service chạy tự động khi khởi động.
 
+**Luồng NiFi** (gộp số liệu 5 phút lên biểu đồ) dựng một lần sau khi NiFi khởi động xong: `make nifi-driver` (trước `make up`) rồi
+`make nifi-flow`. Chi tiết, kiểm tra và xử lý sự cố: `infra/nifi/README.md`. Chưa dựng xong NiFi thì `make aggregator` làm thay (dự phòng).
+
 ## Cấu trúc thư mục
 
 ```

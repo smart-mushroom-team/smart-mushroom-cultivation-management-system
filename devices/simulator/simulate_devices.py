@@ -97,6 +97,7 @@ class Simulator:
         self.http, self.base, self.devices, self.opts = http, base_url.rstrip("/"), devices, opts
         self.rng = rng or random.Random(opts.seed)
         self.clock, self.sleep, self.out = clock, sleep, out
+        self._base: dict[int, dict] = {}                                      # thống kê của từng thiết bị lúc bắt đầu lượt chạy này
 
     # ---------------------------------------------------------------- gửi một lần
     def send_once(self, dev: Device) -> str:
@@ -143,7 +144,8 @@ class Simulator:
     # ---------------------------------------------------------------- vòng lặp
     def run(self) -> dict:
         t0 = self.clock()
-        start = {id(d): d.stats_total() for d in self.devices}               # --count tính theo từng lượt chạy, không cộng dồn các lượt trước
+        self._base = {id(d): dict(d.stats) for d in self.devices}            # --count và tổng kết tính theo từng lượt chạy, không cộng dồn lượt trước
+        start = {id(d): d.stats_total() for d in self.devices}
         for i, d in enumerate(self.devices):
             d.next_at = t0 + (i * 0.2 if not self.opts.sync else 0)          # so le nhẹ để không bắn cùng một lúc
         try:
@@ -165,7 +167,7 @@ class Simulator:
         return self.summary()
 
     def summary(self) -> dict:
-        total = {k: sum(d.stats[k] for d in self.devices) for k in ("ok", "rejected", "skipped", "errors")}
+        total = {k: sum(d.stats[k] - self._base.get(id(d), {}).get(k, 0) for d in self.devices) for k in ("ok", "rejected", "skipped", "errors")}
         self.out("Tổng kết: " + ", ".join(f"{k}={v}" for k, v in total.items()))
         return total
 
