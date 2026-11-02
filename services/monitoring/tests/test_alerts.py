@@ -384,3 +384,33 @@ def test_core_consumer_accepts_all_alert_types():
     assert required <= presence.offline_event(d).keys() and required <= presence.online_event(d).keys()
     assert thresholds.LABEL.keys() == {"TEMP", "HUMIDITY"}
     assert make_token("CUSTOMER")
+
+
+# ================================================================ GET ngưỡng (cho giao diện web)
+def test_get_thresholds_defaults_when_room_has_none(client, operator, room):
+    r = client.get(f"/rooms/{room}/thresholds", headers=operator).json()
+    assert r == {"tempMin": 20.0, "tempMax": 30.0, "humMin": 70.0, "humMax": 95.0, "consecutiveN": 3,
+                 "configured": False, "alerting": {"temp": False, "hum": False}}
+
+
+def test_get_thresholds_after_device_created_and_after_put(client, operator, room, sensor):
+    r = client.get(f"/rooms/{room}/thresholds", headers=operator).json()
+    assert r["configured"] is True and (r["tempMin"], r["tempMax"], r["consecutiveN"]) == (20.0, 30.0, 3)      # dòng mặc định do thêm thiết bị
+    set_thr(client, operator, room, tempMin=18.5, tempMax=26, humMin=60, humMax=90, consecutiveN=5)
+    r = client.get(f"/rooms/{room}/thresholds", headers=operator).json()
+    assert (r["tempMin"], r["tempMax"], r["humMin"], r["humMax"], r["consecutiveN"]) == (18.5, 26.0, 60.0, 90.0, 5)
+
+
+def test_get_thresholds_reports_alerting_state(client, operator, room, sensor, published):
+    for _ in range(3):
+        tele(client, sensor, temperature=35, humidity=80)
+    assert client.get(f"/rooms/{room}/thresholds", headers=operator).json()["alerting"] == {"temp": True, "hum": False}
+    tele(client, sensor, temperature=25, humidity=80)
+    assert client.get(f"/rooms/{room}/thresholds", headers=operator).json()["alerting"] == {"temp": False, "hum": False}
+
+
+def test_get_thresholds_permissions_and_ids(client, operator, admin, customer, room):
+    assert client.get(f"/rooms/{room}/thresholds").status_code == 401
+    assert client.get(f"/rooms/{room}/thresholds", headers=customer).status_code == 403
+    assert client.get(f"/rooms/{room}/thresholds", headers=admin).status_code == 200
+    assert client.get("/rooms/khong-phai-uuid/thresholds", headers=operator).status_code == 404
