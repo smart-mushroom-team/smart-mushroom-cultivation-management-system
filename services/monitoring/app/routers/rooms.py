@@ -77,6 +77,23 @@ class ThresholdIn(BaseModel):
     consecutiveN: int = Field(default=3, ge=1, le=100)
 
 
+DEFAULT_THRESHOLDS = {"tempMin": 20.0, "tempMax": 30.0, "humMin": 70.0, "humMax": 95.0, "consecutiveN": 3}      # khớp DEFAULT của room_thresholds
+
+
+@router.get("/{room_id}/thresholds", summary="Ngưỡng hiện tại của phòng, kèm việc phòng đang trong đợt cảnh báo hay không")
+def get_thresholds(room_id: str, _=Depends(require_roles("OPERATOR"))):
+    """`configured=false`: phòng chưa có dòng ngưỡng (chưa có thiết bị nào và chưa ai đặt), trả giá trị mặc định và CHƯA có cảnh báo nào
+    được đánh giá cho phòng này. Lưu ngưỡng (PUT) hoặc thêm thiết bị vào phòng thì cảnh báo bắt đầu hoạt động."""
+    room_id = snapshots.valid_room_id(room_id)
+    with engine().connect() as c:
+        r = c.execute(text("SELECT temp_min,temp_max,hum_min,hum_max,consecutive_n,temp_alerting,hum_alerting "
+                           "FROM room_thresholds WHERE room_id=:r"), {"r": room_id}).first()
+    if r is None:
+        return {**DEFAULT_THRESHOLDS, "configured": False, "alerting": {"temp": False, "hum": False}}
+    return {"tempMin": float(r.temp_min), "tempMax": float(r.temp_max), "humMin": float(r.hum_min), "humMax": float(r.hum_max),
+            "consecutiveN": r.consecutive_n, "configured": True, "alerting": {"temp": r.temp_alerting, "hum": r.hum_alerting}}
+
+
 @router.put("/{room_id}/thresholds", summary="FR-38: Operator/Admin đặt ngưỡng")
 def set_thresholds(room_id: str, b: ThresholdIn, _=Depends(require_roles("OPERATOR"))):
     room_id = snapshots.valid_room_id(room_id)

@@ -1,8 +1,24 @@
-# Web (React + Vite) – khung
+# Web quản trị (React + Vite + TypeScript)
 
-Chạy ngoài Docker khi phát triển: `npm create vite@latest . -- --template react-ts && npm i && npm run dev`.
-Gọi API qua Gateway: `VITE_API_URL=http://localhost:8000`.
+Dành cho **Operator** và **Admin**. Khách thuê khay dùng ứng dụng di động (`clients/mobile`).
 
-Gợi ý cấu trúc: `src/api/` (client + gắn JWT), `src/pages/{customer,operator,admin}/`, `src/components/`.
-Màn hình tối thiểu: đăng nhập, danh sách gói + thuê khay, Khay của tôi, biểu đồ nhiệt độ/độ ẩm, thông báo, quản trị.
-Swagger của từng service: `http://localhost:8000/api/<service>/docs`.
+Thư viện: React Router, TanStack Query, Tailwind CSS 4 và Recharts.
+
+## Chạy khi phát triển
+
+```bash
+make up
+make web-install
+make web-dev
+```
+
+Vite chuyển tiếp `/api/...` tới API Gateway. Có thể đặt `VITE_API_URL` để gọi trực tiếp API.
+
+## Kiểm thử
+
+```bash
+make web-test
+make ui-test
+```
+
+Test giao diện giám sát nằm ở `tests/ui/test_web_monitoring.py`.
