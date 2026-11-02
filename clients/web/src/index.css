@@ -1,0 +1,22 @@
+:root { font-family: "Segoe UI", sans-serif; color: #1c2420; background: #f1f3ee; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+.login-page { min-height: 100vh; display: grid; place-items: center; padding: 2rem; background: radial-gradient(circle at 15% 15%, #e9e1ee, transparent 34rem), #fafbf8; }
+form { width: min(100%, 28rem); padding: 2.5rem; border: 1px solid #d9ded5; border-radius: 12px; background: #fff; box-shadow: 0 18px 50px #46294f18; }
+h1 { margin: .25rem 0 .75rem; font-size: 2.25rem; }
+p { color: #5d6a62; line-height: 1.5; }
+.eyebrow { color: #5a3a66; font-size: .75rem; font-weight: 700; letter-spacing: .12em; }
+label { display: block; margin-top: 1.25rem; font-weight: 600; }
+input { display: block; width: 100%; margin-top: .4rem; padding: .7rem .8rem; border: 1px solid #d9ded5; border-radius: 6px; }
+form button { width: 100%; margin-top: 1.5rem; padding: .75rem; border: 0; border-radius: 6px; color: white; background: #5a3a66; }
+form button:disabled { opacity: .6; cursor: wait; }
+.notice, .error { margin-top: 1rem; padding: .75rem; border-radius: 6px; font-size: .9rem; }
+.notice { color: #46294f; background: #e9e1ee; }
+.error { color: #a93a2e; background: #f6dedb; }
+.shell { max-width: 72rem; margin: auto; padding: 1.5rem; }
+header { display: flex; align-items: center; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #d9ded5; }
+header strong { margin-right: auto; color: #46294f; }
+header button { padding: .45rem .75rem; border: 1px solid #d9ded5; border-radius: 6px; background: transparent; }
+.muted { color: #5d6a62; }
