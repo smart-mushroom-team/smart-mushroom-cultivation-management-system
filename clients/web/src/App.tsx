@@ -5,6 +5,7 @@ import { Home } from './pages/Home'
 import { Login } from './pages/Login'
 import { CycleDetail } from './pages/CycleDetail'
 import { Cycles } from './pages/Cycles'
+import { Devices } from './pages/Devices'
 import { Monitoring } from './pages/Monitoring'
 import { Notifications } from './pages/Notifications'
 import { RoomDetail } from './pages/RoomDetail'
@@ -22,6 +23,7 @@ export function App() {
           <Route path="giam-sat/:roomId" element={<RoomDetail />} />
           <Route path="dot-nuoi" element={<Cycles />} />
           <Route path="dot-nuoi/:cycleId" element={<CycleDetail />} />
+          <Route path="thiet-bi" element={<Devices />} />
           <Route path="thong-bao" element={<Notifications />} />
           <Route path="*" element={<NotFound />} />
         </Route>

@@ -24,7 +24,7 @@ qua Swagger: `POST /api/identity/users/operators`.
 ## Kiểm thử
 
 ```bash
-make web-test      # kiểm kiểu + 56 test đơn vị (Vitest, Testing Library)
+make web-test      # kiểm kiểu + 62 test đơn vị (Vitest, Testing Library)
 make ui-test       # test giao diện bằng trình duyệt thật (Playwright) trên stack đang chạy; cần make up và make web-dev
 ```
 
@@ -32,6 +32,7 @@ Lần đầu chạy `make ui-test`: `pip install playwright pytest requests pill
 Test giám sát (`tests/ui/test_web_monitoring.py`) tự tạo phòng, thiết bị, số đo và ảnh qua Gateway (`E2E_BASE_URL`, mặc định http://localhost:8000);
 biểu đồ cần NiFi hoặc `make aggregator` đang chạy, không có thì test biểu đồ tự bỏ qua.
 Test đợt nuôi (`tests/ui/test_web_cycles.py`) tự tạo khách thuê khay rồi thao tác như Operator.
+Test thiết bị (`tests/ui/test_web_devices.py`) kiểm khóa API hiện ra dùng được thật, bị từ chối khi tắt thiết bị và khi đã đổi khóa.
 Đặt `UI_SHOTS=thư-mục` để lưu ảnh chụp màn hình, `E2E_HEADED=1` để xem trình duyệt chạy.
 
 ## Cấu trúc
@@ -40,7 +41,7 @@ Test đợt nuôi (`tests/ui/test_web_cycles.py`) tự tạo khách thuê khay r
 src/api/        http.ts (gọi API, lỗi thống nhất {error:{code,message}}), auth.ts, core.ts (và các nhóm API ở bước sau)
 src/auth/       session.ts (lưu phiên, hạn token), AuthContext.tsx (đăng nhập, đăng xuất, tự thoát khi hết hạn hoặc bị 401)
 src/components/ Layout (thanh bên theo vai trò), RequireRole (chặn theo quyền), TrayStrip, Notice, SporePrint
-src/pages/      Login, Home (Tổng quan), Monitoring (danh sách phòng), RoomDetail (số đo, biểu đồ 5 phút, camera, ngưỡng), Notifications, Cycles + CycleDetail (đợt nuôi: chuyển giai đoạn, thu hoạch, loại bỏ), NotFound
+src/pages/      Login, Home (Tổng quan), Monitoring (danh sách phòng), RoomDetail (số đo, biểu đồ 5 phút, camera, ngưỡng), Notifications, Cycles + CycleDetail (đợt nuôi: chuyển giai đoạn, thu hoạch, loại bỏ), Devices (tạo thiết bị, khóa API hiện một lần, đổi khóa, bật/tắt), NotFound
 src/lib/        format.ts (hàm thuần: mức so với ngưỡng, đứt đường khi mất dữ liệu, trục Y, thời gian)
 ```
 
