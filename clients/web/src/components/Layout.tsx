@@ -9,7 +9,7 @@ const NAV: Item[] = [
   { to: '/', label: 'Tổng quan', ready: true },
   { to: '/giam-sat', label: 'Giám sát phòng', ready: true },
   { to: '/dot-nuoi', label: 'Đợt nuôi', ready: true },
-  { to: '/thiet-bi', label: 'Thiết bị', ready: false },
+  { to: '/thiet-bi', label: 'Thiết bị', ready: true },
   { to: '/thong-bao', label: 'Thông báo', ready: true, badge: true },
   { to: '/danh-muc', label: 'Phòng, khay, gói', ready: false, adminOnly: true },
   { to: '/nguoi-dung', label: 'Người dùng', ready: false, adminOnly: true },
