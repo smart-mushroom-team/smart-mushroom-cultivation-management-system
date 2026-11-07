@@ -21,10 +21,23 @@ nguồn đó trong `CORS_ORIGINS`).
 Đăng nhập bằng tài khoản Admin seed (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` trong `.env`). Admin tạo Operator ở bước 5f, hoặc tạm thời
 qua Swagger: `POST /api/identity/users/operators`.
 
+## Chạy bằng Docker (production)
+
+`make up` dựng thêm service `web`: `Dockerfile` build bản production rồi nginx phục vụ ở http://localhost:8080 (đổi cổng bằng `WEB_PORT` trong `.env`).
+`nginx.conf` làm các việc sau:
+
+- chuyển `/api/...` và `/iot/...` tới Gateway (`gateway:8000`), nên trình duyệt chỉ gọi một địa chỉ và không cần CORS; Swagger cũng xem được ở `/api/core/docs`;
+- mọi đường dẫn khác trả `index.html` để React Router hoạt động khi tải lại trang hoặc mở link trực tiếp;
+- tệp trong `/assets/` cache một năm, `index.html` luôn kiểm tra lại, nên bản mới có hiệu lực ngay;
+- giới hạn body 2 MB (khớp Gateway), header bảo mật (CSP chỉ cho tài nguyên cùng origin, cấm nhúng iframe).
+
+Nếu thêm thư viện hoặc tài nguyên nạp từ domain khác (CDN, font ngoài) thì phải mở thêm trong dòng `Content-Security-Policy`, nếu không trình duyệt sẽ chặn.
+Chạy test giao diện vào bản đóng gói: `E2E_WEB_URL=http://localhost:8080 make ui-test`.
+
 ## Kiểm thử
 
 ```bash
-make web-test      # kiểm kiểu + 62 test đơn vị (Vitest, Testing Library)
+make web-test      # kiểm kiểu + 83 test đơn vị (Vitest, Testing Library)
 make ui-test       # test giao diện bằng trình duyệt thật (Playwright) trên stack đang chạy; cần make up và make web-dev
 ```
 
@@ -33,6 +46,8 @@ Test giám sát (`tests/ui/test_web_monitoring.py`) tự tạo phòng, thiết b
 biểu đồ cần NiFi hoặc `make aggregator` đang chạy, không có thì test biểu đồ tự bỏ qua.
 Test đợt nuôi (`tests/ui/test_web_cycles.py`) tự tạo khách thuê khay rồi thao tác như Operator.
 Test thiết bị (`tests/ui/test_web_devices.py`) kiểm khóa API hiện ra dùng được thật, bị từ chối khi tắt thiết bị và khi đã đổi khóa.
+Test danh mục (`tests/ui/test_web_catalog.py`) kiểm cả phía khách: khay mới làm tăng số khay trống, gói bị tắt biến mất khỏi danh sách của khách, phòng/khay đã thuê không ngừng/xóa được.
+Test Admin (`tests/ui/test_web_admin.py`) cần Core chạy với DEMO_MODE=true (có trong compose mặc định của dự án); test luôn trả ngày demo về ngày thật khi xong.
 Đặt `UI_SHOTS=thư-mục` để lưu ảnh chụp màn hình, `E2E_HEADED=1` để xem trình duyệt chạy.
 
 ## Cấu trúc
@@ -41,7 +56,7 @@ Test thiết bị (`tests/ui/test_web_devices.py`) kiểm khóa API hiện ra d�
 src/api/        http.ts (gọi API, lỗi thống nhất {error:{code,message}}), auth.ts, core.ts (và các nhóm API ở bước sau)
 src/auth/       session.ts (lưu phiên, hạn token), AuthContext.tsx (đăng nhập, đăng xuất, tự thoát khi hết hạn hoặc bị 401)
 src/components/ Layout (thanh bên theo vai trò), RequireRole (chặn theo quyền), TrayStrip, Notice, SporePrint
-src/pages/      Login, Home (Tổng quan), Monitoring (danh sách phòng), RoomDetail (số đo, biểu đồ 5 phút, camera, ngưỡng), Notifications, Cycles + CycleDetail (đợt nuôi: chuyển giai đoạn, thu hoạch, loại bỏ), Devices (tạo thiết bị, khóa API hiện một lần, đổi khóa, bật/tắt), NotFound
+src/pages/      Login, Home (Tổng quan), Monitoring (danh sách phòng), RoomDetail (số đo, biểu đồ 5 phút, camera, ngưỡng), Notifications, Cycles + CycleDetail (đợt nuôi: chuyển giai đoạn, thu hoạch, loại bỏ), Devices (tạo thiết bị, khóa API hiện một lần, đổi khóa, bật/tắt), Catalog (Admin: phòng, khay thêm hàng loạt, gói thuê; mã nguồn từng tab ở pages/catalog/), Users (Admin: tạo Operator, khóa/mở tài khoản), Demo (Admin: ngày giả lập, chạy job hết hạn), NotFound
 src/lib/        format.ts (hàm thuần: mức so với ngưỡng, đứt đường khi mất dữ liệu, trục Y, thời gian)
 ```
 

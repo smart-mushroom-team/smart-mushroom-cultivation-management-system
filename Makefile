@@ -1,4 +1,4 @@
-.PHONY: up down logs ps build test lint seed demo-expire keys e2e simulate nifi-driver nifi-flow aggregator test-infra
+.PHONY: up down logs ps build test lint seed demo-expire keys e2e simulate nifi-driver nifi-flow aggregator test-infra web-install web-dev web-test ui-test web-url
 
 up:            ## dựng toàn bộ hệ thống
 	docker compose up -d --build
@@ -43,3 +43,18 @@ aggregator:    ## chạy aggregator DỰ PHÒNG thay NiFi (cùng câu SQL), ví 
 
 test-infra:    ## test script NiFi (dùng NiFi giả, không cần Docker)
 	python -m pytest tests/nifi -q
+
+web-install:   ## cài thư viện cho web (cần Node.js 20 trở lên)
+	cd clients/web && npm ci
+
+web-dev:       ## chạy web ở http://localhost:5173 (tự chuyển tiếp /api tới Gateway ở :8000; cần make up)
+	cd clients/web && npm run dev
+
+web-test:      ## kiểm kiểu TypeScript và chạy test đơn vị của web
+	cd clients/web && npm run typecheck && npm test
+
+web-url:       ## địa chỉ web khi chạy bằng compose (service `web`, nginx)
+	@echo "http://localhost:$${WEB_PORT:-8080}"
+
+ui-test:       ## test giao diện web bằng trình duyệt thật (cần make up và make web-dev; lần đầu: pip install playwright pytest requests && playwright install chromium)
+	set -a; . ./.env; set +a; E2E=1 python -m pytest tests/ui -v

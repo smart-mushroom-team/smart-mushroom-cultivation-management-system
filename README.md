@@ -8,7 +8,7 @@ Mô hình: một trang trại cung cấp hạ tầng nuôi trồng và giám sá
 ```
 Web (React) / Mobile (Flutter) / ESP32 / Camera Agent
                     │
-              API Gateway  :8000   (điểm vào duy nhất)
+              API Gateway  :8000   (điểm vào duy nhất của API; web đi qua nginx :8080)
         ┌───────────┼────────────┐
    Identity       Core        Monitoring
    identity_db   core_db     monitoring_db     ← một PostgreSQL, ba database riêng
@@ -32,7 +32,8 @@ make up                         # = docker compose up -d --build
 
 | Thành phần | Địa chỉ |
 |---|---|
-| API Gateway | http://localhost:8000 (`/health`) |
+| **Web quản trị** (Admin/Operator) | http://localhost:8080 (`WEB_PORT`; nginx phục vụ web và chuyển `/api`, `/iot` tới Gateway) |
+| API Gateway (thiết bị IoT, app di động) | http://localhost:8000 (`/health`) |
 | Swagger UI (qua Gateway) | http://localhost:8000/api/identity/docs · `/api/core/docs` · `/api/monitoring/docs` |
 | Grafana | http://localhost:3000 (dashboard dựng sẵn "Mushroom - Tổng quan") |
 | Prometheus | http://localhost:9090 |
@@ -40,6 +41,8 @@ make up                         # = docker compose up -d --build
 | NiFi | https://localhost:8443/nifi |
 
 PostgreSQL và Redis **không** publish cổng ra ngoài (SRS 2.6). Migration của từng service chạy tự động khi khởi động.
+
+**Web quản trị** (Operator/Admin): sau `make up` mở http://localhost:8080. Khi sửa code web thì dùng `make web-install` một lần, rồi `make web-dev` mở http://localhost:5173 (tự chuyển `/api` tới Gateway). Chi tiết: `clients/web/README.md`.
 
 **Luồng NiFi** (gộp số liệu 5 phút lên biểu đồ) dựng một lần sau khi NiFi khởi động xong: `make nifi-driver` (trước `make up`) rồi
 `make nifi-flow`. Chi tiết, kiểm tra và xử lý sự cố: `infra/nifi/README.md`. Chưa dựng xong NiFi thì `make aggregator` làm thay (dự phòng).
