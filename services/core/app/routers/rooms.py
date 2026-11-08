@@ -29,17 +29,17 @@ class RoomPatch(BaseModel):
 class TrayIn(BaseModel):
     trayCode: str = Field(min_length=1, max_length=50)
     roomId: str
-    row: int = Field(ge=1)
-    shelf: int = Field(ge=1)
-    slot: int = Field(ge=1)
+    row: int = Field(ge=1, le=4)
+    shelf: int = Field(ge=1, le=2)
+    slot: int = Field(ge=1, le=4)
 
 
 class TrayPatch(BaseModel):
     trayCode: str | None = Field(default=None, min_length=1, max_length=50)
     roomId: str | None = None
-    row: int | None = Field(default=None, ge=1)
-    shelf: int | None = Field(default=None, ge=1)
-    slot: int | None = Field(default=None, ge=1)
+    row: int | None = Field(default=None, ge=1, le=4)
+    shelf: int | None = Field(default=None, ge=1, le=2)
+    slot: int | None = Field(default=None, ge=1, le=4)
 
 
 def _room_row(r):
@@ -94,13 +94,13 @@ def list_trays(roomId: str | None = None, _=Depends(require_roles("OPERATOR"))):
 def create_tray(body: TrayIn, _=Depends(require_roles("OPERATOR"))):
     try:
         with engine().begin() as c:
-            if not c.execute(text("SELECT 1 FROM rooms WHERE id=:i"), {"i": body.roomId}).first():
+            if not c.execute(text("SELECT 1 FROM rooms WHERE id=:i AND status='ACTIVE'"), {"i": body.roomId}).first():
                 raise AppError(404, "ROOM_NOT_FOUND", "Phòng không tồn tại")
             tid = c.execute(text("""INSERT INTO trays(tray_code,room_id,location_row,location_shelf,location_slot)
                                     VALUES (:c,:r,:a,:b,:d) RETURNING id"""),
                             {"c": body.trayCode, "r": body.roomId, "a": body.row, "b": body.shelf, "d": body.slot}).scalar()
     except IntegrityError:
-        raise AppError(409, "TRAY_CODE_EXISTS", "Mã khay đã tồn tại")
+        raise AppError(409, "TRAY_CONFLICT", "Mã khay hoặc vị trí hàng/kệ/ô đã có khay")
     return {"id": str(tid)}
 
 
@@ -114,7 +114,7 @@ def update_tray(tray_id: str, body: TrayPatch, _=Depends(require_roles("OPERATOR
             if body.roomId and str(tray.room_id) != body.roomId:
                 if tray.occupancy_status == "RENTED":
                     raise AppError(409, "TRAY_RENTED", "Khay đang được thuê, không thể chuyển phòng")
-                if not c.execute(text("SELECT 1 FROM rooms WHERE id=:i"), {"i": body.roomId}).first():
+                if not c.execute(text("SELECT 1 FROM rooms WHERE id=:i AND status='ACTIVE'"), {"i": body.roomId}).first():
                     raise AppError(404, "ROOM_NOT_FOUND", "Phòng không tồn tại")
             c.execute(text("""UPDATE trays SET tray_code=COALESCE(:c,tray_code), room_id=COALESCE(CAST(:r AS uuid),room_id),
                               location_row=COALESCE(:a,location_row), location_shelf=COALESCE(:b,location_shelf),
@@ -122,7 +122,7 @@ def update_tray(tray_id: str, body: TrayPatch, _=Depends(require_roles("OPERATOR
                       {"c": body.trayCode, "r": body.roomId, "a": body.row, "b": body.shelf, "d": body.slot, "i": tray_id})
             return _tray_row(c.execute(text(f"SELECT {_TRAY_COLS} FROM trays WHERE id=:i"), {"i": tray_id}).first())
     except IntegrityError:
-        raise AppError(409, "TRAY_CODE_EXISTS", "Mã khay đã tồn tại")
+        raise AppError(409, "TRAY_CONFLICT", "Mã khay hoặc vị trí hàng/kệ/ô đã có khay")
 
 
 @router.delete("/trays/{tray_id}", status_code=204, summary="Xóa khay chưa từng thuê")

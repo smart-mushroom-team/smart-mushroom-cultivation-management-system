@@ -47,7 +47,11 @@ def list_all(_=Depends(require_roles("ADMIN"))):
 
 @router.post("", status_code=201, summary="FR-10: Admin tạo gói")
 def create_package(body: PackageIn, _=Depends(require_roles("ADMIN"))):
+    if body.durationDays not in (10, 15, 30):
+        raise AppError(422, "INVALID_DURATION", "Chỉ hỗ trợ gói 10, 15 hoặc 30 ngày")
     with engine().begin() as c:
+        if c.execute(text("SELECT 1 FROM rental_packages WHERE duration_days=:d"), {"d": body.durationDays}).first():
+            raise AppError(409, "PACKAGE_EXISTS", "Gói thời hạn này đã tồn tại; hãy sửa giá gói hiện có")
         pid = c.execute(text("INSERT INTO rental_packages(name,duration_days,price_per_tray) VALUES (:n,:d,:p) RETURNING id"),
                         {"n": body.name, "d": body.durationDays, "p": body.pricePerTray}).scalar()
     return {"id": str(pid)}
@@ -55,6 +59,8 @@ def create_package(body: PackageIn, _=Depends(require_roles("ADMIN"))):
 
 @router.patch("/{package_id}", summary="FR-10: Admin sửa gói hoặc tắt/bật (isActive)")
 def update_package(package_id: str, body: PackagePatch, _=Depends(require_roles("ADMIN"))):
+    if body.durationDays is not None and body.durationDays not in (10, 15, 30):
+        raise AppError(422, "INVALID_DURATION", "Chỉ hỗ trợ gói 10, 15 hoặc 30 ngày")
     with engine().begin() as c:
         n = c.execute(text("""UPDATE rental_packages SET name=COALESCE(:n,name), duration_days=COALESCE(:d,duration_days),
                               price_per_tray=COALESCE(:p,price_per_tray), is_active=COALESCE(:a,is_active) WHERE id=:i"""),

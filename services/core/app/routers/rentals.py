@@ -3,7 +3,7 @@ trong MỘT giao dịch cơ sở dữ liệu (BR-01, BR-04, BR-05). Đơn ACTIVE
 import datetime as dt
 
 from fastapi import APIRouter, Depends
-from pydantic import Field
+from pydantic import Field, model_validator
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
@@ -18,7 +18,20 @@ router = APIRouter(prefix="/rentals", tags=["rentals"])
 
 class RentalIn(variety.VarietyChoice):
     packageId: str
-    trayCount: int = Field(gt=0, le=50)
+    trayCount: int | None = Field(default=None, gt=0, le=32)
+    roomId: str | None = None
+    trayIds: list[str] | None = Field(default=None, min_length=1, max_length=32)
+
+    @model_validator(mode="after")
+    def validate_selection(self):
+        if self.trayIds is not None:
+            if not self.roomId or len(self.trayIds) != len(set(self.trayIds)):
+                raise ValueError("Cần roomId và danh sách trayIds không trùng")
+            if self.trayCount is not None and self.trayCount != len(self.trayIds):
+                raise ValueError("trayCount không khớp trayIds")
+        elif self.trayCount is None:
+            raise ValueError("Cần trayIds hoặc trayCount")
+        return self
 
 
 def simulate_payment(amount) -> bool:
@@ -60,18 +73,35 @@ def _create_rental(body: RentalIn, user: CurrentUser):
         if not pkg:
             raise AppError(404, "PACKAGE_NOT_FOUND", "Gói thuê không tồn tại hoặc đã tắt")
         v_name, v_id, v_status = variety.resolve(c, body)
-        tray_ids = pick_trays(c, body.trayCount)
-        if len(tray_ids) < body.trayCount:
+        if body.trayIds is not None:
+            # Lock theo thứ tự ổn định để tránh deadlock giữa các đơn cùng chọn khay.
+            tray_ids = sorted(body.trayIds)
+            selected = c.execute(text("""SELECT t.id FROM trays t JOIN rooms r ON r.id=t.room_id
+                WHERE t.id = ANY(CAST(:ids AS uuid[])) AND t.room_id=CAST(:room AS uuid)
+                  AND t.occupancy_status='AVAILABLE' AND r.status='ACTIVE'
+                ORDER BY t.id FOR UPDATE OF t"""), {"ids": tray_ids, "room": body.roomId}).scalars().all()
+            if len(selected) != len(tray_ids):
+                raise AppError(409, "TRAY_CONFLICT", "Một số khay không thuộc phòng đã chọn hoặc đã được thuê")
+        else:
+            # Tương thích client Flutter cũ; sau khi cập nhật mobile sẽ bỏ chế độ tự chọn.
+            tray_ids = pick_trays(c, body.trayCount)
+            if tray_ids:
+                room_count = c.execute(text("SELECT count(DISTINCT room_id) FROM trays WHERE id = ANY(CAST(:ids AS uuid[]))"), {"ids": tray_ids}).scalar()
+                if room_count != 1:
+                    raise AppError(409, "SINGLE_ROOM_REQUIRED", "Không đủ khay trống trong cùng một phòng")
+        quantity = len(tray_ids)
+        if quantity < (len(body.trayIds) if body.trayIds is not None else body.trayCount):
             raise AppError(409, "NOT_ENOUGH_TRAYS", "Không đủ khay trống")          # UC-02 4a: rollback, không giữ khay nào
-        total = pkg.price_per_tray * body.trayCount
+        actual_room_id = body.roomId or str(c.execute(text("SELECT room_id FROM trays WHERE id=CAST(:i AS uuid)"), {"i": tray_ids[0]}).scalar())
+        total = pkg.price_per_tray * quantity
         if not simulate_payment(total):
             raise AppError(402, "PAYMENT_FAILED", "Thanh toán thất bại")            # UC-02 4b
         end = start + dt.timedelta(days=pkg.duration_days - 1)                      # BR-05: tính cả hai đầu mút
         rid = c.execute(text("""INSERT INTO rentals(customer_id,customer_name,package_id,package_name,duration_days,
-                                    price_per_tray,tray_count,total_amount,start_date,end_date)
-                                VALUES (:cid,:cn,:pid,:pn,:dd,:pp,:tc,:ta,:s,:e) RETURNING id"""),
+                                    price_per_tray,tray_count,total_amount,start_date,end_date,room_id)
+                                VALUES (:cid,:cn,:pid,:pn,:dd,:pp,:tc,:ta,:s,:e,CAST(:room AS uuid)) RETURNING id"""),
                         {"cid": user.id, "cn": user.name, "pid": pkg.id, "pn": pkg.name, "dd": pkg.duration_days,
-                         "pp": pkg.price_per_tray, "tc": body.trayCount, "ta": total, "s": start, "e": end}).scalar()
+                         "pp": pkg.price_per_tray, "tc": quantity, "ta": total, "s": start, "e": end, "room": actual_room_id}).scalar()
         for tid in tray_ids:
             c.execute(text("INSERT INTO rental_trays(rental_id,tray_id) VALUES (:r,:t)"), {"r": rid, "t": tid})
             c.execute(text("INSERT INTO cultivation_cycles(rental_id,tray_id,start_date,variety,variety_id,variety_status) "
@@ -80,21 +110,21 @@ def _create_rental(body: RentalIn, user: CurrentUser):
         c.execute(text("UPDATE trays SET occupancy_status='RENTED' WHERE id = ANY(CAST(:ids AS uuid[]))"), {"ids": tray_ids})
         c.execute(text("INSERT INTO transactions(rental_id,amount) VALUES (:r,:a)"), {"r": rid, "a": total})
         notify.create(c, type="RENTAL_CREATED", title="Thuê khay thành công",
-                      content=f"{body.trayCount} khay, đến hết {end:%d/%m/%Y}", dedupe_key=f"RENTAL_CREATED:{rid}",
+                      content=f"{quantity} khay, đến hết {end:%d/%m/%Y}", dedupe_key=f"RENTAL_CREATED:{rid}",
                       user_id=user.id, data={"rentalId": str(rid)})
         notify.create(c, type="NEW_RENTAL", title="Có đơn thuê mới",                 # Operator chuẩn bị khay (rủi ro bỏ xác nhận)
-                      content=f"{user.name} thuê {body.trayCount} khay", dedupe_key=f"NEW_RENTAL:{rid}",
+                      content=f"{user.name} thuê {quantity} khay", dedupe_key=f"NEW_RENTAL:{rid}",
                       staff=True, data={"rentalId": str(rid)})
         if v_status == "PENDING":
             notify.create(c, type="VARIETY_PENDING", title="Có giống nấm chờ duyệt",
-                          content=f"{user.name} chọn giống \"{v_name}\" cho {body.trayCount} khay", dedupe_key=f"VARIETY_PENDING:{rid}",
+                          content=f"{user.name} chọn giống \"{v_name}\" cho {quantity} khay", dedupe_key=f"VARIETY_PENDING:{rid}",
                           staff=True, data={"rentalId": str(rid)})
-    notify.push_to_user(user.id, "Thuê khay thành công", f"{body.trayCount} khay, đến hết {end:%d/%m/%Y}")   # sau commit (BR-18)
-    notify.push_to_staff("Có đơn thuê mới", f"{user.name} thuê {body.trayCount} khay", {"type": "NEW_RENTAL", "rentalId": str(rid)})
+    notify.push_to_user(user.id, "Thuê khay thành công", f"{quantity} khay, đến hết {end:%d/%m/%Y}")   # sau commit (BR-18)
+    notify.push_to_staff("Có đơn thuê mới", f"{user.name} thuê {quantity} khay", {"type": "NEW_RENTAL", "rentalId": str(rid)})
     if v_status == "PENDING":
         notify.push_to_staff("Có giống nấm chờ duyệt", f"{user.name} chọn giống \"{v_name}\"", {"type": "VARIETY_PENDING", "rentalId": str(rid)})
     return {"id": str(rid), "status": "ACTIVE", "startDate": start.isoformat(), "endDate": end.isoformat(),
-            "totalAmount": float(total), "trayIds": tray_ids, "variety": v_name, "varietyStatus": v_status}
+            "totalAmount": float(total), "trayIds": tray_ids, "roomId": actual_room_id, "variety": v_name, "varietyStatus": v_status}
 
 
 @router.get("/mine", summary="BR-02: chỉ đơn của chính khách")
