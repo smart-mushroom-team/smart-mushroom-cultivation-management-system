@@ -1,8 +1,9 @@
 import { Route, Routes } from 'react-router-dom'
 import { Layout } from './components/Layout'
-import { RequireAuth } from './components/RequireRole'
+import { RequireAuth, RequireRole } from './components/RequireRole'
 import { Home } from './pages/Home'
 import { Login } from './pages/Login'
+import { Catalog } from './pages/Catalog'
 import { CycleDetail } from './pages/CycleDetail'
 import { Cycles } from './pages/Cycles'
 import { Devices } from './pages/Devices'
@@ -24,6 +25,9 @@ export function App() {
           <Route path="dot-nuoi" element={<Cycles />} />
           <Route path="dot-nuoi/:cycleId" element={<CycleDetail />} />
           <Route path="thiet-bi" element={<Devices />} />
+          <Route element={<RequireRole roles={['ADMIN']} />}>
+            <Route path="danh-muc" element={<Catalog />} />
+          </Route>
           <Route path="thong-bao" element={<Notifications />} />
           <Route path="*" element={<NotFound />} />
         </Route>
