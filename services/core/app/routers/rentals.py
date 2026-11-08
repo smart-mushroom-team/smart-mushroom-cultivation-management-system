@@ -3,7 +3,7 @@ trong MỘT giao dịch cơ sở dữ liệu (BR-01, BR-04, BR-05). Đơn ACTIVE
 import datetime as dt
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
@@ -11,12 +11,12 @@ from common.db import engine
 from common.errors import AppError
 from common.security import CurrentUser, require_roles
 
-from .. import clock, notify
+from .. import clock, notify, variety
 
 router = APIRouter(prefix="/rentals", tags=["rentals"])
 
 
-class RentalIn(BaseModel):
+class RentalIn(variety.VarietyChoice):
     packageId: str
     trayCount: int = Field(gt=0, le=50)
 
@@ -59,6 +59,7 @@ def _create_rental(body: RentalIn, user: CurrentUser):
                         {"i": body.packageId}).first()
         if not pkg:
             raise AppError(404, "PACKAGE_NOT_FOUND", "Gói thuê không tồn tại hoặc đã tắt")
+        v_name, v_id, v_status = variety.resolve(c, body)
         tray_ids = pick_trays(c, body.trayCount)
         if len(tray_ids) < body.trayCount:
             raise AppError(409, "NOT_ENOUGH_TRAYS", "Không đủ khay trống")          # UC-02 4a: rollback, không giữ khay nào
@@ -73,8 +74,9 @@ def _create_rental(body: RentalIn, user: CurrentUser):
                          "pp": pkg.price_per_tray, "tc": body.trayCount, "ta": total, "s": start, "e": end}).scalar()
         for tid in tray_ids:
             c.execute(text("INSERT INTO rental_trays(rental_id,tray_id) VALUES (:r,:t)"), {"r": rid, "t": tid})
-            c.execute(text("INSERT INTO cultivation_cycles(rental_id,tray_id,start_date) VALUES (:r,:t,:s)"),
-                      {"r": rid, "t": tid, "s": start})
+            c.execute(text("INSERT INTO cultivation_cycles(rental_id,tray_id,start_date,variety,variety_id,variety_status) "
+                           "VALUES (:r,:t,:s,:v,CAST(:vi AS uuid),:vs)"),
+                      {"r": rid, "t": tid, "s": start, "v": v_name, "vi": v_id, "vs": v_status})
         c.execute(text("UPDATE trays SET occupancy_status='RENTED' WHERE id = ANY(CAST(:ids AS uuid[]))"), {"ids": tray_ids})
         c.execute(text("INSERT INTO transactions(rental_id,amount) VALUES (:r,:a)"), {"r": rid, "a": total})
         notify.create(c, type="RENTAL_CREATED", title="Thuê khay thành công",
@@ -83,15 +85,22 @@ def _create_rental(body: RentalIn, user: CurrentUser):
         notify.create(c, type="NEW_RENTAL", title="Có đơn thuê mới",                 # Operator chuẩn bị khay (rủi ro bỏ xác nhận)
                       content=f"{user.name} thuê {body.trayCount} khay", dedupe_key=f"NEW_RENTAL:{rid}",
                       staff=True, data={"rentalId": str(rid)})
+        if v_status == "PENDING":
+            notify.create(c, type="VARIETY_PENDING", title="Có giống nấm chờ duyệt",
+                          content=f"{user.name} chọn giống \"{v_name}\" cho {body.trayCount} khay", dedupe_key=f"VARIETY_PENDING:{rid}",
+                          staff=True, data={"rentalId": str(rid)})
     notify.push_to_user(user.id, "Thuê khay thành công", f"{body.trayCount} khay, đến hết {end:%d/%m/%Y}")   # sau commit (BR-18)
     notify.push_to_staff("Có đơn thuê mới", f"{user.name} thuê {body.trayCount} khay", {"type": "NEW_RENTAL", "rentalId": str(rid)})
+    if v_status == "PENDING":
+        notify.push_to_staff("Có giống nấm chờ duyệt", f"{user.name} chọn giống \"{v_name}\"", {"type": "VARIETY_PENDING", "rentalId": str(rid)})
     return {"id": str(rid), "status": "ACTIVE", "startDate": start.isoformat(), "endDate": end.isoformat(),
-            "totalAmount": float(total), "trayIds": tray_ids}
+            "totalAmount": float(total), "trayIds": tray_ids, "variety": v_name, "varietyStatus": v_status}
 
 
 @router.get("/mine", summary="BR-02: chỉ đơn của chính khách")
 def my_rentals(user: CurrentUser = Depends(require_roles("CUSTOMER"))):
     with engine().connect() as c:
-        rows = c.execute(text("SELECT id,package_name,tray_count,status,start_date,end_date FROM rentals "
-                              "WHERE customer_id=:u ORDER BY created_at DESC"), {"u": user.id})
+        rows = c.execute(text("SELECT id,package_name,tray_count,status,start_date,end_date,duration_days,price_per_tray,total_amount,created_at,"
+                              "(SELECT count(*) FROM cultivation_cycles cc WHERE cc.rental_id=rentals.id AND cc.status='GROWING') AS growing_count "
+                              "FROM rentals WHERE customer_id=:u ORDER BY created_at DESC"), {"u": user.id})
         return [dict(r._mapping, id=str(r.id)) for r in rows]

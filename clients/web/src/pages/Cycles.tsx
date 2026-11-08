@@ -5,15 +5,16 @@ import { listRooms } from '../api/core'
 import { listCycles, type CycleStatus } from '../api/cycles'
 import { describeError } from '../api/http'
 import { Notice } from '../components/Notice'
-import { STAGE_LABEL, STATUS_LABEL, dateVi } from '../lib/cycle'
+import { STAGE_LABEL, STATUS_LABEL, VARIETY_STATUS_LABEL, dateVi } from '../lib/cycle'
 
 const TABS: CycleStatus[] = ['GROWING', 'HARVESTED', 'DISCARDED']
 
 export function Cycles() {
   const [status, setStatus] = useState<CycleStatus>('GROWING')
   const [roomId, setRoomId] = useState('')
+  const [pendingOnly, setPendingOnly] = useState(false)
   const rooms = useQuery({ queryKey: ['rooms'], queryFn: listRooms })
-  const q = useQuery({ queryKey: ['cycles', status, roomId], queryFn: () => listCycles(status, roomId) })
+  const q = useQuery({ queryKey: ['cycles', status, roomId, pendingOnly], queryFn: () => listCycles(status, roomId, pendingOnly ? 'PENDING' : undefined) })
   const roomName = (id: string) => rooms.data?.find((r) => r.id === id)?.name ?? '—'
 
   return (
@@ -29,6 +30,9 @@ export function Cycles() {
             </button>
           ))}
         </div>
+        <button type="button" aria-pressed={pendingOnly} onClick={() => setPendingOnly(!pendingOnly)} className={`rounded-md px-3 py-1.5 text-sm font-medium ${pendingOnly ? 'bg-amber-soft text-amber' : 'border border-line hover:border-spore'}`}>
+          Giống chờ duyệt
+        </button>
         <label className="flex items-center gap-2 text-sm">
           Phòng
           <select value={roomId} onChange={(e) => setRoomId(e.target.value)} className="rounded-md border border-line bg-paper px-2 py-1.5 text-sm">
@@ -48,7 +52,7 @@ export function Cycles() {
         ) : !q.data ? (
           <p className="text-mute" role="status">Đang tải...</p>
         ) : q.data.length === 0 ? (
-          <p className="text-mute">{status === 'GROWING' ? 'Chưa có khay nào đang nuôi. Khi khách thuê khay, đợt nuôi sẽ hiện ở đây.' : `Chưa có đợt nuôi nào ở trạng thái "${STATUS_LABEL[status].toLowerCase()}".`}</p>
+          <p className="text-mute">{pendingOnly ? 'Không có giống nào đang chờ duyệt.' : status === 'GROWING' ? 'Chưa có khay nào đang nuôi. Khi khách thuê khay, đợt nuôi sẽ hiện ở đây.' : `Chưa có đợt nuôi nào ở trạng thái "${STATUS_LABEL[status].toLowerCase()}".`}</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-line bg-paper">
             <table className="w-full text-left text-sm">
@@ -69,7 +73,12 @@ export function Cycles() {
                     <td className="px-4 py-3">{roomName(c.roomId)}</td>
                     <td className="px-4 py-3">{c.customerName}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{c.status === 'GROWING' ? STAGE_LABEL[c.stage] : STATUS_LABEL[c.status]}</td>
-                    <td className="px-4 py-3">{c.variety ?? <span className="text-mute">Chưa nhập</span>}</td>
+                    <td className="px-4 py-3">
+                      {c.variety ?? <span className="text-mute">Chưa nhập</span>}
+                      {(c.varietyStatus === 'PENDING' || c.varietyStatus === 'REJECTED') && (
+                        <span className={`ml-2 rounded px-1.5 py-0.5 text-xs ${c.varietyStatus === 'PENDING' ? 'bg-amber-soft text-amber' : 'bg-brick-soft text-brick'}`}>{VARIETY_STATUS_LABEL[c.varietyStatus]}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">{dateVi(c.expectedHarvestDate)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {dateVi(c.rentalEndDate)}

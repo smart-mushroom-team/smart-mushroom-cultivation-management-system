@@ -10,6 +10,7 @@ const NAV: Item[] = [
   { to: '/giam-sat', label: 'Giám sát phòng', ready: true },
   { to: '/dot-nuoi', label: 'Đợt nuôi', ready: true },
   { to: '/thiet-bi', label: 'Thiết bị', ready: true },
+  { to: '/giong-nam', label: 'Giống nấm', ready: true },
   { to: '/thong-bao', label: 'Thông báo', ready: true, badge: true },
   { to: '/danh-muc', label: 'Phòng, khay, gói', ready: true, adminOnly: true },
   { to: '/nguoi-dung', label: 'Người dùng', ready: true, adminOnly: true },

@@ -19,3 +19,10 @@ export function planTrays(prefix: string, count: number, startSlot: number) {
   const width = Math.max(2, String(count).length)
   return Array.from({ length: count }, (_, i) => ({ trayCode: `${prefix}-${String(i + 1).padStart(width, '0')}`, slot: startSlot + i }))
 }
+
+/** Số thực trong [min, max], nhận cả "27,5" lẫn "27.5"; null nếu không hợp lệ. */
+export function parseDecimal(s: string, min: number, max: number): number | null {
+  const t = s.trim().replace(',', '.')
+  const v = Number(t)
+  return t !== '' && Number.isFinite(v) && v >= min && v <= max ? v : null
+}

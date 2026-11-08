@@ -2,11 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { listRooms } from '../api/core'
-import { discardCycle, getCycle, harvestCycle, patchCycle, type CycleDetail as Detail } from '../api/cycles'
+import { approveVariety, type CatalogEntry, discardCycle, getCycle, harvestCycle, patchCycle, rejectVariety, type CycleDetail as Detail } from '../api/cycles'
 import { ApiError, describeError } from '../api/http'
+import { EMPTY_VARIETY_FORM, Fields, validate as validateVariety, type Form as VarietyForm } from './catalog/VarietiesTab'
 import { Notice } from '../components/Notice'
 import { StageSteps } from '../components/StageSteps'
-import { STAGE_LABEL, STATUS_LABEL, canHarvest, dateVi, nextStage, parseWeight } from '../lib/cycle'
+import { STAGE_LABEL, STATUS_LABEL, VARIETY_STATUS_LABEL, canHarvest, dateVi, nextStage, parseWeight, varietyBlocksStage } from '../lib/cycle'
 import { clock } from '../lib/format'
 
 const input = 'mt-1 w-full rounded-md border border-line bg-paper px-3 py-2 text-sm'
@@ -54,13 +55,15 @@ export function CycleDetail() {
         <dl className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
           <Info label="Bắt đầu" value={dateVi(c.startDate)} />
           <Info label="Hạn thuê" value={dateVi(c.rentalEndDate)} />
-          <Info label="Giống" value={c.variety ?? 'Chưa nhập'} />
+          <Info label="Giống" value={c.variety ? `${c.variety} (${VARIETY_STATUS_LABEL[c.varietyStatus]})` : 'Chưa nhập'} />
           <Info label="Thu hoạch dự kiến" value={dateVi(c.expectedHarvestDate)} />
           {c.status === 'HARVESTED' && <Info label="Đã thu hoạch" value={`${dateVi(c.harvestedAt)} · ${c.weightKg} kg`} />}
           {c.status === 'DISCARDED' && <Info label="Lý do loại bỏ" value={c.discardReason ?? '—'} />}
           {c.note && <Info label="Ghi chú" value={c.note} />}
         </dl>
       </section>
+
+      {growing && <VarietyReview cycle={c} />}
 
       {growing && <Actions cycle={c} />}
 
@@ -142,7 +145,8 @@ function Actions({ cycle }: { cycle: Detail }) {
               Ghi chú (không bắt buộc)
               <input value={stageNote} onChange={(e) => setStageNote(e.target.value)} maxLength={1000} className={input} />
             </label>
-            <button type="button" disabled={advance.isPending} onClick={() => advance.mutate()} className={`${btn} bg-spore text-paper hover:bg-spore-deep`}>
+            {varietyBlocksStage(cycle.varietyStatus) && <Notice>Chưa chuyển giai đoạn được vì giống nấm {cycle.varietyStatus === 'PENDING' ? 'đang chờ duyệt' : 'đã bị từ chối, khách cần chọn lại'}.</Notice>}
+            <button type="button" disabled={advance.isPending || varietyBlocksStage(cycle.varietyStatus)} onClick={() => advance.mutate()} className={`${btn} bg-spore text-paper hover:bg-spore-deep`}>
               {advance.isPending ? 'Đang chuyển...' : `Chuyển sang ${STAGE_LABEL[next]}`}
             </button>
             {advance.isError && <Notice tone="error">Không chuyển được. {describeError(advance.error)}</Notice>}
@@ -158,6 +162,7 @@ function Actions({ cycle }: { cycle: Detail }) {
           <label className="block text-sm font-medium">
             Giống nấm
             <input value={variety} onChange={(e) => { setVariety(e.target.value); save.reset() }} maxLength={100} className={input} />
+            <span className="mt-1 block text-xs font-normal text-mute">Operator nhập giống ở đây thì coi như đã duyệt.</span>
           </label>
           <div>
             <label htmlFor="exp" className="block text-sm font-medium">Thu hoạch dự kiến</label>
@@ -215,6 +220,62 @@ function Actions({ cycle }: { cycle: Detail }) {
         )}
         {discard.isError && <div className="mt-3"><Notice tone="error">Không loại bỏ được. {describeError(discard.error)}</Notice></div>}
       </div>
+    </section>
+  )
+}
+
+function VarietyReview({ cycle }: { cycle: Detail }) {
+  const qc = useQueryClient()
+  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ['cycle', cycle.id] }), qc.invalidateQueries({ queryKey: ['cycles'] })])
+  const [reason, setReason] = useState('')
+  const [rejecting, setRejecting] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [vf, setVf] = useState<VarietyForm>({ ...EMPTY_VARIETY_FORM, name: cycle.variety ?? '' })
+  const [shown, setShown] = useState(false)
+  const approve = useMutation({ mutationFn: (entry?: CatalogEntry) => approveVariety(cycle.id, entry), onSuccess: () => { setAdding(false); return refresh() } })
+  function approveAndAdd() {
+    setShown(true)
+    const { body } = validateVariety(vf)
+    if (body) approve.mutate({ growthDays: body.growthDays, tempMin: body.tempMin, tempMax: body.tempMax, humMin: body.humMin, humMax: body.humMax, description: body.description })
+  }
+  const reject = useMutation({ mutationFn: () => rejectVariety(cycle.id, reason.trim()), onSuccess: () => { setRejecting(false); setReason(''); return refresh() } })
+
+  if (cycle.varietyStatus === 'REJECTED') {
+    return <Notice tone="error">Giống "{cycle.variety}" đã bị từ chối{cycle.varietyRejectReason ? `: ${cycle.varietyRejectReason}` : ''}. Đang chờ khách chọn giống khác.</Notice>
+  }
+  if (cycle.varietyStatus !== 'PENDING') return null
+  return (
+    <section aria-label="Duyệt giống" className="rounded-lg border border-amber/40 bg-amber-soft p-4">
+      <h2 className="font-display text-base font-semibold">Giống chờ duyệt: {cycle.variety}</h2>
+      <p className="mt-1 text-sm">Khách tự nhập giống này, không có trong danh mục. Duyệt hoặc từ chối áp dụng cho mọi khay cùng đơn đang chờ giống này. Duyệt không kèm khoảng thì khách vẫn nuôi bình thường nhưng app chưa đánh giá được số đo.</p>
+      {adding ? (
+        <div className="mt-3 space-y-3">
+          <p className="text-sm">Nhập khoảng phù hợp của giống này. Giống được thêm vào danh mục cho khách khác chọn, và app khách dùng khoảng này để báo nhiệt độ, độ ẩm tốt hay chưa.</p>
+          <Fields id="approve-add" f={vf} set={(p) => setVf({ ...vf, ...p })} shown={shown} hideName />
+          <div className="flex gap-2">
+            <button type="button" disabled={approve.isPending} onClick={approveAndAdd} className={`${btn} bg-moss text-paper`}>{approve.isPending ? 'Đang duyệt...' : 'Duyệt và thêm vào danh mục'}</button>
+            <button type="button" onClick={() => setAdding(false)} className={`${btn} border border-line`}>Hủy</button>
+          </div>
+        </div>
+      ) : !rejecting ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" disabled={approve.isPending} onClick={() => approve.mutate(undefined)} className={`${btn} bg-moss text-paper`}>{approve.isPending ? 'Đang duyệt...' : 'Duyệt giống'}</button>
+          <button type="button" onClick={() => setAdding(true)} className={`${btn} border border-moss/40 text-moss hover:bg-moss-soft`}>Duyệt và thêm vào danh mục...</button>
+          <button type="button" onClick={() => setRejecting(true)} className={`${btn} border border-brick/40 text-brick hover:bg-brick-soft`}>Từ chối...</button>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <label className="block text-sm font-medium">
+            Lý do từ chối (khách sẽ đọc)
+            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={1000} className={input} />
+          </label>
+          <div className="flex gap-2">
+            <button type="button" disabled={!reason.trim() || reject.isPending} onClick={() => reject.mutate()} className={`${btn} bg-brick text-paper`}>{reject.isPending ? 'Đang gửi...' : 'Xác nhận từ chối'}</button>
+            <button type="button" onClick={() => setRejecting(false)} className={`${btn} border border-line`}>Hủy</button>
+          </div>
+        </div>
+      )}
+      {(approve.isError || reject.isError) && <div className="mt-3"><Notice tone="error">Không thực hiện được. {describeError(approve.error ?? reject.error)}</Notice></div>}
     </section>
   )
 }

@@ -9,7 +9,7 @@ from common.app_factory import create_app
 from common.migrate import run_migrations
 
 from . import clock, consumer, lifecycle, notify
-from .routers import cycles, demo, internal, notifications, packages, rentals, rooms
+from .routers import cycles, demo, internal, notifications, packages, rentals, rooms, varieties
 
 log = logging.getLogger("core")
 scheduler = BackgroundScheduler(timezone=clock.TZ)
@@ -28,5 +28,5 @@ async def lifespan(_):
 
 app = create_app("core", "Phòng/khay, gói và đơn thuê, đợt nuôi, thông báo")
 app.router.lifespan_context = lifespan
-for r in (rooms.router, packages.router, rentals.router, cycles.router, notifications.router, demo.router, internal.router):
+for r in (rooms.router, packages.router, rentals.router, cycles.router, notifications.router, demo.router, internal.router, varieties.router):
     app.include_router(r)
