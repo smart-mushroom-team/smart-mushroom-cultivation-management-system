@@ -45,6 +45,25 @@ jobs:
       - run: PYTHONPATH=. python -m pytest -q
         working-directory: libs/common
       - run: python -m pytest tests/nifi -q
+  web:                             # giao diện web: kiểm kiểu, test đơn vị, build production
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: clients/web/package-lock.json }
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+  web-image:                       # đóng gói web: build image và kiểm cú pháp nginx.conf bên trong image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t mushroom-web clients/web
+      - run: docker run --rm mushroom-web nginx -t
   compose-config:
     runs-on: ubuntu-latest
     steps:

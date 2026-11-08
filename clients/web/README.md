@@ -21,6 +21,19 @@ nguồn đó trong `CORS_ORIGINS`).
 Đăng nhập bằng tài khoản Admin seed (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` trong `.env`). Admin tạo Operator ở bước 5f, hoặc tạm thời
 qua Swagger: `POST /api/identity/users/operators`.
 
+## Chạy bằng Docker (production)
+
+`make up` dựng thêm service `web`: `Dockerfile` build bản production rồi nginx phục vụ ở http://localhost:8080 (đổi cổng bằng `WEB_PORT` trong `.env`).
+`nginx.conf` làm các việc sau:
+
+- chuyển `/api/...` và `/iot/...` tới Gateway (`gateway:8000`), nên trình duyệt chỉ gọi một địa chỉ và không cần CORS; Swagger cũng xem được ở `/api/core/docs`;
+- mọi đường dẫn khác trả `index.html` để React Router hoạt động khi tải lại trang hoặc mở link trực tiếp;
+- tệp trong `/assets/` cache một năm, `index.html` luôn kiểm tra lại, nên bản mới có hiệu lực ngay;
+- giới hạn body 2 MB (khớp Gateway), header bảo mật (CSP chỉ cho tài nguyên cùng origin, cấm nhúng iframe).
+
+Nếu thêm thư viện hoặc tài nguyên nạp từ domain khác (CDN, font ngoài) thì phải mở thêm trong dòng `Content-Security-Policy`, nếu không trình duyệt sẽ chặn.
+Chạy test giao diện vào bản đóng gói: `E2E_WEB_URL=http://localhost:8080 make ui-test`.
+
 ## Kiểm thử
 
 ```bash

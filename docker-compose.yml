@@ -163,8 +163,15 @@ services:
       UPSTREAM_TIMEOUT_SECONDS: 30
       MAX_BODY_BYTES: 2097152       # 2 MB (snapshot)
       CORS_ORIGINS: "http://localhost:5173,http://localhost:3001"
-    ports: ["${GATEWAY_PORT:-8000}:8000"]   # cổng duy nhất của ứng dụng mở ra mạng
+    ports: ["${GATEWAY_PORT:-8000}:8000"]   # cổng cho thiết bị IoT và app di động (web đi qua nginx bên dưới)
     depends_on: [identity, core, monitoring]
+
+  web:
+    build: { context: ./clients/web }
+    ports: ["${WEB_PORT:-8080}:80"]         # giao diện web cho Admin/Operator; nginx chuyển /api và /iot tới gateway
+    depends_on: [gateway]
+    restart: unless-stopped
+    deploy: { resources: { limits: { memory: 64m } } }
 
 volumes:
   pgdata:
