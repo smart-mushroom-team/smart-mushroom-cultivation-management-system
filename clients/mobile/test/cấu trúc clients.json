@@ -1,0 +1,1088 @@
+{
+  "name": "clients",
+  "path": "c:\\Users\\ADMIN\\xd-phan-mem-huong_doi_tuong\\mushroom-rental-platform\\clients",
+  "type": "directory",
+  "children": [
+    {
+      "name": "mobile",
+      "type": "folder",
+      "children": [
+        {
+          "name": ".dart_tool",
+          "type": "folder",
+          "children": [
+            {
+              "name": "extension_discovery",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "vs_code.json",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "flutter_build",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "98f8907ef7735c458a6d10898e55b6d2",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": ".filecache",
+                      "type": "file"
+                    },
+                    {
+                      "name": "app.dill",
+                      "type": "file"
+                    },
+                    {
+                      "name": "build_hooks.d",
+                      "type": "file"
+                    },
+                    {
+                      "name": "build_hooks.stamp",
+                      "type": "file"
+                    },
+                    {
+                      "name": "build_hooks_result.json",
+                      "type": "file"
+                    },
+                    {
+                      "name": "debug_android_application.stamp",
+                      "type": "file"
+                    },
+                    {
+                      "name": "flutter_assets.d",
+                      "type": "file"
+                    },
+                    {
+                      "name": "gen_dart_plugin_registrant.stamp",
+                      "type": "file"
+                    },
+                    {
+                      "name": "gen_localizations.stamp",
+                      "type": "file"
+                    },
+                    {
+                      "name": "install_code_assets.d",
+                      "type": "file"
+                    },
+                    {
+                      "name": "install_code_assets.stamp",
+                      "type": "file"
+                    },
+                    {
+                      "name": "kernel_snapshot_program.d",
+                      "type": "file"
+                    },
+                    {
+                      "name": "kernel_snapshot_program.stamp",
+                      "type": "file"
+                    },
+                    {
+                      "name": "link_hooks.d",
+                      "type": "file"
+                    },
+                    {
+                      "name": "link_hooks.stamp",
+                      "type": "file"
+                    },
+                    {
+                      "name": "link_hooks_result.json",
+                      "type": "file"
+                    },
+                    {
+                      "name": "native_assets.json",
+                      "type": "file"
+                    },
+                    {
+                      "name": "outputs.json",
+                      "type": "file"
+                    },
+                    {
+                      "name": "recorded_uses.json",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "dart_plugin_registrant.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "hooks_runner",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "objective_c",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": "196c15e30a",
+                      "type": "folder",
+                      "children": [
+                        {
+                          "name": ".lock",
+                          "type": "file"
+                        },
+                        {
+                          "name": "dependencies.dependencies_hash_file.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "hook.dependencies_hash_file.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "hook.dill",
+                          "type": "file"
+                        },
+                        {
+                          "name": "hook.dill.d",
+                          "type": "file"
+                        },
+                        {
+                          "name": "input.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "output.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "stderr.txt",
+                          "type": "file"
+                        },
+                        {
+                          "name": "stdout.txt",
+                          "type": "file"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "337ce265dc",
+                      "type": "folder",
+                      "children": [
+                        {
+                          "name": ".lock",
+                          "type": "file"
+                        },
+                        {
+                          "name": "dependencies.dependencies_hash_file.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "hook.dependencies_hash_file.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "hook.dill",
+                          "type": "file"
+                        },
+                        {
+                          "name": "hook.dill.d",
+                          "type": "file"
+                        },
+                        {
+                          "name": "input.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "output.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "stderr.txt",
+                          "type": "file"
+                        },
+                        {
+                          "name": "stdout.txt",
+                          "type": "file"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "80bf5e0150",
+                      "type": "folder",
+                      "children": [
+                        {
+                          "name": ".lock",
+                          "type": "file"
+                        },
+                        {
+                          "name": "dependencies.dependencies_hash_file.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "hook.dependencies_hash_file.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "hook.dill",
+                          "type": "file"
+                        },
+                        {
+                          "name": "hook.dill.d",
+                          "type": "file"
+                        },
+                        {
+                          "name": "input.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "output.json",
+                          "type": "file"
+                        },
+                        {
+                          "name": "stderr.txt",
+                          "type": "file"
+                        },
+                        {
+                          "name": "stdout.txt",
+                          "type": "file"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "name": "shared",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": "objective_c",
+                      "type": "folder",
+                      "children": [
+                        {
+                          "name": ".lock",
+                          "type": "file"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "package_config.json",
+              "type": "file"
+            },
+            {
+              "name": "package_graph.json",
+              "type": "file"
+            },
+            {
+              "name": "version",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": "android",
+          "type": "folder",
+          "children": [
+            {
+              "name": ".gradle",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "9.3.1",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": "checksums",
+                      "type": "folder",
+                      "children": [
+                        {
+                          "name": "checksums.lock",
+                          "type": "file"
+                        },
+                        {
+                          "name": "md5-checksums.bin",
+                          "type": "file"
+                        },
+                        {
+                          "name": "sha1-checksums.bin",
+                          "type": "file"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "executionHistory",
+                      "type": "folder",
+                      "children": [
+                        {
+                          "name": "executionHistory.bin",
+                          "type": "file"
+                        },
+                        {
+                          "name": "executionHistory.lock",
+                          "type": "file"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "fileChanges",
+                      "type": "folder",
+                      "children": [
+                        {
+                          "name": "last-build.bin",
+                          "type": "file"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "fileHashes",
+                      "type": "folder",
+                      "children": [
+                        {
+                          "name": "fileHashes.bin",
+                          "type": "file"
+                        },
+                        {
+                          "name": "fileHashes.lock",
+                          "type": "file"
+                        },
+                        {
+                          "name": "resourceHashesCache.bin",
+                          "type": "file"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "gc.properties",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "buildOutputCleanup",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": "buildOutputCleanup.lock",
+                      "type": "file"
+                    },
+                    {
+                      "name": "cache.properties",
+                      "type": "file"
+                    },
+                    {
+                      "name": "outputFiles.bin",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "noVersion",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": "buildLogic.lock",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "vcs-1",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": "gc.properties",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "file-system.probe",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "app",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "src",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": "main",
+                      "type": "folder",
+                      "children": [
+                        {
+                          "name": "java",
+                          "type": "folder",
+                          "children": [
+                            {
+                              "name": "io",
+                              "type": "folder",
+                              "children": [
+                                {
+                                  "name": "flutter",
+                                  "type": "folder",
+                                  "children": [
+                                    {
+                                      "name": "plugins",
+                                      "type": "folder",
+                                      "children": [
+                                        {
+                                          "name": "GeneratedPluginRegistrant.java",
+                                          "type": "file"
+                                        }
+                                      ]
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "gradle",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "wrapper",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": "gradle-wrapper.jar",
+                      "type": "file"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "gradlew",
+              "type": "file"
+            },
+            {
+              "name": "gradlew.bat",
+              "type": "file"
+            },
+            {
+              "name": "local.properties",
+              "type": "file"
+            },
+            {
+              "name": "mushroom_mobile_android.iml",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": "assets",
+          "type": "folder",
+          "children": [
+            {
+              "name": "icon",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "icon.png",
+                  "type": "file"
+                },
+                {
+                  "name": "icon_fg.png",
+                  "type": "file"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "lib",
+          "type": "folder",
+          "children": [
+            {
+              "name": "auth",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "auth_controller.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "auth_scope.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "session.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "core",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "api_client.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "config.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "format.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "notifications",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "notification_controller.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "notifications_tab.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "push",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "firebase_push.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "push_registrar.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "push_service.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "rent",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "rent_tab.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "rental_repository.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "screens",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "account_tab.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "auth_screen.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "home_shell.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "trays",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "condition.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "cycle_screen.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "mini_chart.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "room_reading.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "tray_models.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "tray_repository.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "trays_tab.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "variety",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "variety_models.dart",
+                  "type": "file"
+                },
+                {
+                  "name": "variety_sheet.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "widgets",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "notice.dart",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "app.dart",
+              "type": "file"
+            },
+            {
+              "name": "main.dart",
+              "type": "file"
+            },
+            {
+              "name": "theme.dart",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": "test",
+          "type": "folder",
+          "children": [
+            {
+              "name": "condition_test.dart",
+              "type": "file"
+            },
+            {
+              "name": "format_test.dart",
+              "type": "file"
+            },
+            {
+              "name": "helpers.dart",
+              "type": "file"
+            },
+            {
+              "name": "notifications_test.dart",
+              "type": "file"
+            },
+            {
+              "name": "push_test.dart",
+              "type": "file"
+            },
+            {
+              "name": "rent_test.dart",
+              "type": "file"
+            },
+            {
+              "name": "trays_test.dart",
+              "type": "file"
+            },
+            {
+              "name": "widget_test.dart",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": ".flutter-plugins-dependencies",
+          "type": "file"
+        },
+        {
+          "name": "README.md",
+          "type": "file"
+        },
+        {
+          "name": "mushroom_mobile.iml",
+          "type": "file"
+        },
+        {
+          "name": "pubspec.lock",
+          "type": "file"
+        },
+        {
+          "name": "pubspec.yaml",
+          "type": "file"
+        }
+      ]
+    },
+    {
+      "name": "web",
+      "type": "folder",
+      "children": [
+        {
+          "name": "src",
+          "type": "folder",
+          "children": [
+            {
+              "name": "api",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "auth.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "core.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "cycles.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "demo.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "devices.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "http.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "monitoring.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "notifications.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "packages.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "users.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "varieties.ts",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "auth",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "AuthContext.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "session.ts",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "components",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "AuthImage.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "CameraPanel.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Layout.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Notice.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Reading.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "RequireRole.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "RoomChart.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "StageSteps.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Tabs.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "ThresholdForm.tsx",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "lib",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "catalog.test.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "catalog.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "cycle.test.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "cycle.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "demo.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "device.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "format.test.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "format.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "users.test.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "users.ts",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "pages",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "catalog",
+                  "type": "folder",
+                  "children": [
+                    {
+                      "name": "PackagesTab.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "RoomsTab.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "TraysTab.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "VarietiesTab.tsx",
+                      "type": "file"
+                    },
+                    {
+                      "name": "ui.ts",
+                      "type": "file"
+                    }
+                  ]
+                },
+                {
+                  "name": "Admin.test.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Catalog.test.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Catalog.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "CycleDetail.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Cycles.test.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Cycles.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Demo.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Devices.test.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Devices.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Home.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Login.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Monitoring.test.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Monitoring.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "NotFound.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Notifications.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "RoomDetail.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Users.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Varieties.test.tsx",
+                  "type": "file"
+                },
+                {
+                  "name": "Varieties.tsx",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "test",
+              "type": "folder",
+              "children": [
+                {
+                  "name": "helpers.ts",
+                  "type": "file"
+                },
+                {
+                  "name": "setup.ts",
+                  "type": "file"
+                }
+              ]
+            },
+            {
+              "name": "App.tsx",
+              "type": "file"
+            },
+            {
+              "name": "index.css",
+              "type": "file"
+            },
+            {
+              "name": "main.tsx",
+              "type": "file"
+            }
+          ]
+        },
+        {
+          "name": ".dockerignore",
+          "type": "file"
+        },
+        {
+          "name": "Dockerfile",
+          "type": "file"
+        },
+        {
+          "name": "README.md",
+          "type": "file"
+        },
+        {
+          "name": "index.html",
+          "type": "file"
+        },
+        {
+          "name": "nginx.conf",
+          "type": "file"
+        },
+        {
+          "name": "package-lock.json",
+          "type": "file"
+        },
+        {
+          "name": "package.json",
+          "type": "file"
+        },
+        {
+          "name": "tsconfig.json",
+          "type": "file"
+        },
+        {
+          "name": "vite.config.ts",
+          "type": "file"
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "generated": "2026-11-08T14:05:19.578Z",
+    "generator": "FileTree Pro Extension",
+    "version": "0.2.0",
+    "showIcons": false,
+    "maxDepth": 15
+  }
+}

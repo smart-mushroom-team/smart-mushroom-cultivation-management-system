@@ -2,6 +2,7 @@ import { api } from './http'
 
 export type Stage = 'SEEDING' | 'INCUBATING' | 'FRUITING' | 'READY'
 export type CycleStatus = 'GROWING' | 'HARVESTED' | 'DISCARDED'
+export type VarietyStatus = 'NONE' | 'APPROVED' | 'PENDING' | 'REJECTED'
 
 export type Cycle = {
   id: string
@@ -12,6 +13,8 @@ export type Cycle = {
   stage: Stage
   status: CycleStatus
   variety: string | null
+  varietyStatus: VarietyStatus
+  varietyRejectReason: string | null
   startDate: string
   expectedHarvestDate: string | null
   harvestedAt: string | null
@@ -29,7 +32,7 @@ export type CycleDetail = Cycle & { logs: CycleLog[] }
 // Backend trả snake_case; chuẩn hóa tại đây như với khay.
 type Dto = {
   id: string; rental_id: string; tray_id: string; tray_code: string; room_id: string; stage: Stage; status: CycleStatus
-  variety: string | null; start_date: string; expected_harvest_date: string | null; harvested_at: string | null
+  variety: string | null; variety_status?: VarietyStatus; variety_reject_reason?: string | null; start_date: string; expected_harvest_date: string | null; harvested_at: string | null
   weight_kg: number | null; discard_reason: string | null; note: string | null
   customer_name: string; rental_status: string; rental_end_date: string
   logs?: { from_stage: string | null; to_stage: string; note: string | null; created_at: string }[]
@@ -37,17 +40,25 @@ type Dto = {
 
 export const toCycle = (d: Dto): Cycle => ({
   id: d.id, rentalId: d.rental_id, trayId: d.tray_id, trayCode: d.tray_code, roomId: d.room_id, stage: d.stage, status: d.status,
-  variety: d.variety, startDate: d.start_date, expectedHarvestDate: d.expected_harvest_date, harvestedAt: d.harvested_at,
+  variety: d.variety, varietyStatus: d.variety_status ?? 'NONE', varietyRejectReason: d.variety_reject_reason ?? null, startDate: d.start_date, expectedHarvestDate: d.expected_harvest_date, harvestedAt: d.harvested_at,
   weightKg: d.weight_kg, discardReason: d.discard_reason, note: d.note, customerName: d.customer_name,
   rentalStatus: d.rental_status, rentalEndDate: d.rental_end_date,
 })
 const toDetail = (d: Dto): CycleDetail => ({ ...toCycle(d), logs: (d.logs ?? []).map((l) => ({ from: l.from_stage, to: l.to_stage, note: l.note, at: l.created_at })) })
 
-export const listCycles = async (status: CycleStatus | 'ALL', roomId?: string) =>
-  (await api<Dto[]>('/api/core/cycles', { query: { status, roomId: roomId || undefined } })).map(toCycle)
+export const listCycles = async (status: CycleStatus | 'ALL', roomId?: string, varietyStatus?: VarietyStatus) =>
+  (await api<Dto[]>('/api/core/cycles', { query: { status, roomId: roomId || undefined, varietyStatus } })).map(toCycle)
 export const getCycle = async (id: string) => toDetail(await api<Dto>(`/api/core/cycles/${id}`))
 
 export type CyclePatch = { stage?: Stage; variety?: string; expectedHarvestDate?: string; note?: string }
 export const patchCycle = async (id: string, body: CyclePatch) => toCycle(await api<Dto>(`/api/core/cycles/${id}`, { method: 'PATCH', body }))
 export const harvestCycle = async (id: string, body: { weightKg: number; note?: string }) => toCycle(await api<Dto>(`/api/core/cycles/${id}/harvest`, { method: 'POST', body }))
 export const discardCycle = async (id: string, reason: string) => toCycle(await api<Dto>(`/api/core/cycles/${id}/discard`, { method: 'POST', body: { reason } }))
+
+/** Duyệt/từ chối giống khách tự nhập. Server áp dụng cho mọi khay cùng đơn đang chờ cùng tên giống. */
+export type CatalogEntry = { growthDays: number; tempMin: number; tempMax: number; humMin: number; humMax: number; description: string }
+/** `addToCatalog`: đồng thời thêm giống vào danh mục với khoảng nhiệt độ, độ ẩm để app khách đánh giá số đo theo giống. */
+export const approveVariety = (id: string, addToCatalog?: CatalogEntry) =>
+  api<{ updated: number; cycleIds: string[]; addedToCatalog: boolean }>(`/api/core/cycles/${id}/variety/approve`, { method: 'POST', body: addToCatalog ? { addToCatalog } : undefined })
+export const rejectVariety = (id: string, reason: string) =>
+  api<{ updated: number; cycleIds: string[] }>(`/api/core/cycles/${id}/variety/reject`, { method: 'POST', body: { reason } })

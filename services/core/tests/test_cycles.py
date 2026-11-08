@@ -175,3 +175,40 @@ def test_internal_access_returns_rental_start_as_since(client, farm, db):
     assert out["allowed"] is False and out["since"] is None
     other = client.get(f"/internal/access/rooms/{farm['room']}", params={"customerId": str(uuid.uuid4())}, headers=sk).json()
     assert other["allowed"] is False
+
+
+# ---------------------------------------------------------------- UX #4: lọc khay theo hạn / trạng thái, lịch sử đơn
+def test_my_trays_filters_by_rental_and_cycle_status(client, farm, operator, db):
+    h, uid, rental = rent(client, farm, 2)
+    c1, c2 = [c["id"] for c in cycles(client, operator)]
+    advance(client, operator, c1, "INCUBATING", "FRUITING")
+    client.post(f"/cycles/{c1}/harvest", json={"weightKg": 3}, headers=operator)
+    assert [t["id"] for t in client.get("/my-trays", headers=h).json()] == [c2]                       # mặc định không đổi
+    both = client.get("/my-trays?status=GROWING,HARVESTED&rentalStatus=ACTIVE", headers=h).json()
+    assert {t["id"] for t in both} == {c1, c2}
+    assert [t["id"] for t in client.get("/my-trays?status=HARVESTED", headers=h).json()] == [c1]
+    assert len(client.get("/my-trays?status=ALL", headers=h).json()) == 2
+    _expire(db)
+    assert client.get("/my-trays?status=ALL&rentalStatus=ACTIVE", headers=h).json() == []           # hết hạn: không còn ở "còn hạn"
+    assert len(client.get("/my-trays?status=ALL&rentalStatus=EXPIRED", headers=h).json()) == 2
+    assert len(client.get(f"/my-trays?status=ALL&rentalStatus=ALL&rentalId={rental['id']}", headers=h).json()) == 2
+    other = str(uuid.uuid4())
+    assert client.get(f"/my-trays?status=ALL&rentalStatus=ALL&rentalId={other}", headers=h).json() == []
+    assert client.get("/my-trays?status=ALL&rentalStatus=ALL", headers=make_token("CUSTOMER")).json() == []     # BR-02
+
+
+def test_my_trays_rejects_bad_filters(client, farm):
+    h, uid, _ = rent(client, farm, 1)
+    assert client.get("/my-trays?status=XYZ", headers=h).status_code == 422
+    assert client.get("/my-trays?rentalStatus=XYZ", headers=h).status_code == 422
+    assert client.get("/my-trays?rentalId=abc", headers=h).status_code == 422
+
+
+def test_rentals_mine_has_money_and_open_tray_count(client, farm, operator):
+    h, uid, rental = rent(client, farm, 2)
+    row = client.get("/rentals/mine", headers=h).json()[0]
+    assert row["total_amount"] == rental["totalAmount"] and row["price_per_tray"] * 2 == row["total_amount"]
+    assert row["duration_days"] > 0 and row["growing_count"] == 2 and row["created_at"]
+    cid = cycles(client, operator)[0]["id"]
+    client.post(f"/cycles/{cid}/discard", json={"reason": "x"}, headers=operator)
+    assert client.get("/rentals/mine", headers=h).json()[0]["growing_count"] == 1

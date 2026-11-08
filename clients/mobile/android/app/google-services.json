@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "1077757974154",
+    "project_id": "mushroom-rental-platform",
+    "storage_bucket": "mushroom-rental-platform.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1077757974154:android:7c07dbd7bcdc21b2ba3f73",
+        "android_client_info": {
+          "package_name": "com.example.mushroom_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLeG5-Eznj_bYV-N9eLVty8z-94cZB7SA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1077757974154:android:c0d3b98fdc82325eba3f73",
+        "android_client_info": {
+          "package_name": "vn.edu.utc.mushroom_mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBLeG5-Eznj_bYV-N9eLVty8z-94cZB7SA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,4 +1,4 @@
-import type { CycleStatus, Stage } from '../api/cycles'
+import type { CycleStatus, Stage, VarietyStatus } from '../api/cycles'
 
 export const STAGES: Stage[] = ['SEEDING', 'INCUBATING', 'FRUITING', 'READY']
 export const STAGE_LABEL: Record<Stage, string> = { SEEDING: 'Cấy giống', INCUBATING: 'Ủ tơ', FRUITING: 'Ra quả thể', READY: 'Sẵn sàng thu hoạch' }
@@ -21,3 +21,7 @@ export function parseWeight(s: string): number | null {
   const v = Number(s.trim().replace(',', '.'))
   return s.trim() !== '' && Number.isFinite(v) && v > 0 && v <= 1000 ? v : null
 }
+
+export const VARIETY_STATUS_LABEL: Record<VarietyStatus, string> = { NONE: 'Chưa chọn', APPROVED: 'Đã duyệt', PENDING: 'Chờ duyệt', REJECTED: 'Bị từ chối' }
+/** Giống đang chờ duyệt hoặc bị từ chối thì server không cho chuyển giai đoạn (BR giống nấm). */
+export const varietyBlocksStage = (s: VarietyStatus) => s === 'PENDING' || s === 'REJECTED'

@@ -64,7 +64,7 @@ devices/
   simulator/             script giả lập thiết bị (dự phòng, cờ isSimulated)
 clients/
   web/                   ReactJS cho Admin/Operator
-  mobile/                Flutter cho Customer
+  mobile/                Flutter cho Customer (xem clients/mobile/README.md)
 scripts/                 seed dữ liệu mẫu, chạy job demo, k6
 tests/                   test tích hợp / đồng thời (BR-01)
 ```
@@ -82,7 +82,7 @@ tests/                   test tích hợp / đồng thời (BR-01)
 1. Spike: ESP32 → Gateway → Monitoring → ghi DB (rủi ro mạng, làm ngay tuần đầu).
 2. Nghiệp vụ lõi: Identity → Core (thuê khay, đợt nuôi, Expiry Job) → Monitoring (camera, số liệu, ngưỡng).
 3. Swagger → RabbitMQ (cảnh báo) → Prometheus/Grafana → Redis → NiFi.
-4. Web, Mobile; demo script (`docs/DEMO.md`). Cách bật và kiểm tra FCM: `docs/FCM.md`.
+4. Web, Mobile; demo script (`docs/DEMO.md`). Cách bật và kiểm tra FCM: `docs/FCM.md`. Đóng gói APK, chạy trên điện thoại thật: `docs/MOBILE.md`.
 
 ## Kiểm thử
 

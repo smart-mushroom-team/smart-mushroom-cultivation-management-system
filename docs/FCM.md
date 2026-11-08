@@ -28,7 +28,32 @@ và chạy test. Xem log: `docker compose logs -f core`.
 3. Trong `.env`: `FCM_DRY_RUN=false`, `FIREBASE_CREDENTIALS_FILE=/run/secrets/firebase-service-account.json`.
 4. `docker compose up -d core`. Log khởi động phải có dòng `FCM: gửi thật, service account ...`.
    Nếu thấy `ĐÃ BẬT gửi thật nhưng không thấy tệp service account` thì sai đường dẫn hoặc quên đặt tệp.
-5. App mobile (Flutter, Bước 5) cấu hình cùng project Firebase để lấy FCM token.
+5. App mobile cấu hình cùng project Firebase để lấy FCM token (mục tiếp theo).
+
+## Cấu hình app mobile (Android)
+
+App chạy được khi chưa làm các bước này: không có Firebase thì tab Tài khoản ghi "chưa cấu hình Firebase" và thông báo vẫn xem được
+trong tab Thông báo (app hỏi lại server khi mở tab, khi mở lại app, và khi có push lúc đang dùng). Muốn có push thật:
+
+1. Firebase Console, **cùng project** đã tạo khóa service account ở trên -> *Add app* -> Android. Package name lấy từ
+   `applicationId` trong `clients/mobile/android/app/build.gradle(.kts)` (nếu tạo bằng `flutter create --org vn.edu.utc` thì là
+   `vn.edu.utc.mushroom_mobile`). Tải `google-services.json` đặt vào `clients/mobile/android/app/`.
+2. Bật plugin Google Services cho Gradle (chọn đúng kiểu theo template Flutter của máy bạn):
+   - Template mới (có khối `plugins {}` trong `android/settings.gradle(.kts)`): thêm vào `settings.gradle`
+     `id("com.google.gms.google-services") version "4.4.2" apply false`, và vào `android/app/build.gradle(.kts)`
+     khối `plugins {}` dòng `id("com.google.gms.google-services")`.
+   - Template cũ: thêm `classpath 'com.google.gms:google-services:4.4.2'` vào `buildscript` của `android/build.gradle` và
+     `apply plugin: 'com.google.gms.google-services'` ở cuối `android/app/build.gradle`.
+   - Hoặc để `flutterfire configure` (FlutterFire CLI) tự làm cả hai bước 1-2.
+3. Android 13 trở lên cần quyền hiện thông báo: thêm vào `android/app/src/main/AndroidManifest.xml`, ngay trong `<manifest>`:
+   `<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>`
+4. `flutter pub get`, rồi chạy lại app (không dùng hot reload sau khi đổi Gradle).
+5. **Máy ảo phải là bản có Google Play** (biểu tượng Play Store ở cột *Play Store* khi tạo AVD) và đã đăng nhập tài khoản Google,
+   nếu không FCM không cấp được token. Nếu Gradle báo `minSdkVersion`, đặt `minSdk = 23` trong `android/app/build.gradle(.kts)`.
+
+Kiểm tra: đăng nhập app -> tab Tài khoản phải ghi "Thông báo đẩy: đã bật trên máy này" -> bấm **Gửi thông báo thử**.
+Muốn thấy thông báo hiện trên thanh trạng thái, đưa app ra màn hình chính trước (app đang mở thì chỉ hiện thanh báo ngắn trong app).
+Tab Tài khoản cũng báo rõ các trường hợp: bạn từ chối quyền thông báo, chưa có Firebase, hay máy chủ đang ở chế độ dry-run.
 
 ## Kiểm tra bằng API (không cần app)
 

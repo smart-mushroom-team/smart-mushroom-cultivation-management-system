@@ -58,7 +58,7 @@ def _clean(request):
         return
     eng = request.getfixturevalue("db")
     with eng.begin() as c:
-        c.execute(text("TRUNCATE rooms, trays, rental_packages, rentals, rental_trays, transactions, cultivation_cycles, "
+        c.execute(text("TRUNCATE mushroom_varieties, rooms, trays, rental_packages, rentals, rental_trays, transactions, cultivation_cycles, "
                        "cycle_progress_logs, notifications, notification_reads, device_tokens, system_settings CASCADE"))
     yield
 
