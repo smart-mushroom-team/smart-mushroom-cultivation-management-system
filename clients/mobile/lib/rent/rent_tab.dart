@@ -319,7 +319,7 @@ class _RentTabState extends State<RentTab> {
           Card(child: RadioListTile<String>(
             value: pkg.id,
             title: Text(pkg.name),
-            subtitle: Text('${pkg.durationDays} ngày · ${formatVnd(pkg.pricePerTray)}/khay'),
+            subtitle: Text('${pkg.durationDays} ngày | ${formatVnd(pkg.pricePerTray)}/khay | ${formatVnd(pkg.pricePerTray / pkg.durationDays)}/ngày'),
             secondary: Text(formatVnd(pkg.pricePerTray * _selected.length),
               style: const TextStyle(fontWeight: FontWeight.bold)),
           )),
