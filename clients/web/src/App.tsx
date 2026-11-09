@@ -32,10 +32,13 @@ export function App() {
           <Route path="dot-nuoi/:cycleId" element={<CycleDetail />} />
           <Route path="thiet-bi" element={<Devices />} />
           <Route path="giong-nam" element={<Varieties />} />
-          <Route element={<RequireRole roles={['ADMIN', 'OPERATOR']} />}>
-            <Route path="danh-muc" element={<Catalog />} />
-            <Route path="ban-giao-khay" element={<TrayClearance />} />
-          </Route>
+          <Route element={<RequireRole roles={['ADMIN']} />}>
+  <Route path="danh-muc" element={<Catalog />} />
+</Route>
+
+<Route element={<RequireRole roles={['ADMIN', 'OPERATOR']} />}>
+  <Route path="ban-giao-khay" element={<TrayClearance />} />
+</Route>
           <Route element={<RequireRole roles={['ADMIN']} />}>
             <Route path="don-thue" element={<RentalOrders />} />
             <Route path="chinh-sach" element={<Policies />} />

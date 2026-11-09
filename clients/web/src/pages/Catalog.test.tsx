@@ -62,7 +62,11 @@ describe('khay', () => {
     await user.type(screen.getByLabelText('Ô (bắt đầu từ)'), '5')
     await user.click(screen.getByRole('button', { name: 'Thêm khay' }))
     expect(await screen.findByText(/Đã thêm 2\/4 khay, dừng ở K1-03: Mã khay đã tồn tại/)).toBeInTheDocument()
-    expect(sent(m, 'POST /api/core/trays').map((b) => [b.trayCode, b.slot])).toEqual([['K1-01', 5], ['K1-02', 6], ['K1-03', 7]])
+    expect(sent(m, 'POST /api/core/trays').map((b) => [b.trayCode, b.row, b.shelf, b.slot])).toEqual([
+      ['K1-01', 1, 2, 1],
+      ['K1-02', 1, 2, 2],
+      ['K1-03', 1, 2, 3],
+    ])
   })
 
   it('khay đang thuê không đổi phòng được; xóa cần xác nhận và hiện lý do khi bị từ chối', async () => {

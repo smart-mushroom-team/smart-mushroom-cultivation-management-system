@@ -23,7 +23,7 @@ from .. import core_client
 
 router = APIRouter(prefix="/devices", tags=["devices"], dependencies=[Depends(require_roles("OPERATOR"))])
 OFFLINE_FACTOR = 3          # offline = 3 x chu kỳ gửi (BR-11)
-_COLS = "id,name,type,room_id,status,is_simulated,interval_sec,last_seen_at"
+_COLS = "id,name,type,room_id,status,is_simulated,interval_sec,last_seen_at,camera_slot"
 
 
 class DeviceIn(BaseModel):
@@ -32,12 +32,14 @@ class DeviceIn(BaseModel):
     roomId: str
     intervalSec: int = Field(default=30, ge=5, le=3600)
     isSimulated: bool = False
+    cameraSlot: int | None = Field(default=None, ge=1, le=2)
 
 
 class DevicePatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     intervalSec: int | None = Field(default=None, ge=5, le=3600)
     status: str | None = Field(default=None, pattern="^(ACTIVE|INACTIVE)$")
+    cameraSlot: int | None = Field(default=None, ge=1, le=2)
 
 
 def _new_key() -> tuple[str, str]:
@@ -57,13 +59,14 @@ def _view(r) -> dict:
                   (dt.datetime.now(dt.timezone.utc) - r.last_seen_at).total_seconds() <= OFFLINE_FACTOR * r.interval_sec)
     return {"id": str(r.id), "name": r.name, "type": r.type, "roomId": str(r.room_id), "status": r.status,
             "isSimulated": r.is_simulated, "intervalSec": r.interval_sec, "online": online,
-            "lastSeenAt": r.last_seen_at.isoformat() if r.last_seen_at else None}
+            "lastSeenAt": r.last_seen_at.isoformat() if r.last_seen_at else None,
+            "cameraSlot": r.camera_slot, "coverageRows": [1, 2] if r.camera_slot == 1 else ([3, 4] if r.camera_slot == 2 else None)}
 
 
 @router.get("")
 def list_devices(roomId: str | None = None, type: str | None = None):
     roomId = _uuid(roomId, "Phòng") if roomId else None
-    q = (f"SELECT {_COLS} FROM devices WHERE (CAST(:r AS uuid) IS NULL OR room_id=CAST(:r AS uuid)) "
+    q = (f"SELECT {_COLS} FROM devices WHERE deleted_at IS NULL AND (CAST(:r AS uuid) IS NULL OR room_id=CAST(:r AS uuid)) "
          "AND (CAST(:t AS text) IS NULL OR type=:t) ORDER BY name")
     with engine().connect() as c:
         return [_view(r) for r in c.execute(text(q), {"r": roomId, "t": type})]
@@ -73,13 +76,15 @@ def list_devices(roomId: str | None = None, type: str | None = None):
 def create_device(body: DeviceIn):
     if not core_client.room_exists(body.roomId):
         raise AppError(404, "ROOM_NOT_FOUND", "Phòng không tồn tại hoặc đang ngừng hoạt động")
+    if (body.type == "CAMERA") != (body.cameraSlot is not None):
+        raise AppError(422, "CAMERA_SLOT_REQUIRED", "Camera cần chọn vị trí 1 hoặc 2; sensor không có vị trí camera")
     key, key_hash = _new_key()
     try:
         with engine().begin() as c:
-            did = c.execute(text("""INSERT INTO devices(name,type,room_id,api_key_hash,interval_sec,is_simulated)
-                                    VALUES (:n,:t,:r,:h,:i,:s) RETURNING id"""),
+            did = c.execute(text("""INSERT INTO devices(name,type,room_id,api_key_hash,interval_sec,is_simulated,camera_slot)
+                                    VALUES (:n,:t,:r,:h,:i,:s,:slot) RETURNING id"""),
                             {"n": body.name, "t": body.type, "r": body.roomId, "h": key_hash,
-                             "i": body.intervalSec, "s": body.isSimulated}).scalar()
+                             "i": body.intervalSec, "s": body.isSimulated, "slot": body.cameraSlot}).scalar()
             if body.type == "SENSOR_NODE":
                 c.execute(text("INSERT INTO room_thresholds(room_id) VALUES (:r) ON CONFLICT DO NOTHING"), {"r": body.roomId})
     except IntegrityError:
@@ -92,16 +97,18 @@ def update_device(device_id: str, body: DevicePatch):
     device_id = _uuid(device_id)
     try:
         with engine().begin() as c:
-            cur = c.execute(text("SELECT status FROM devices WHERE id=:d FOR UPDATE"), {"d": device_id}).first()
+            cur = c.execute(text("SELECT status,type FROM devices WHERE id=:d AND deleted_at IS NULL FOR UPDATE"), {"d": device_id}).first()
             if cur is None:
                 raise AppError(404, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại")
+            if body.cameraSlot is not None and cur.type != "CAMERA":
+                raise AppError(422, "NOT_CAMERA", "Chỉ camera mới có vị trí")
             c.execute(text("""UPDATE devices SET name=COALESCE(:n,name), interval_sec=COALESCE(:i,interval_sec),
-                              status=COALESCE(:s,status) WHERE id=:d"""),
-                      {"n": body.name, "i": body.intervalSec, "s": body.status, "d": device_id})
+                              status=COALESCE(:s,status),camera_slot=COALESCE(:slot,camera_slot) WHERE id=:d"""),
+                      {"n": body.name, "i": body.intervalSec, "s": body.status, "slot": body.cameraSlot, "d": device_id})
             if body.status == "ACTIVE" and cur.status != "ACTIVE":
                 # Bật lại: phải gửi dữ liệu lần đầu mới bị coi là có thể offline (không báo ngay theo last_seen cũ từ trước khi tắt)
                 c.execute(text("UPDATE devices SET last_seen_at=NULL, offline_alerted_at=NULL WHERE id=:d"), {"d": device_id})
-            return _view(c.execute(text(f"SELECT {_COLS} FROM devices WHERE id=:d"), {"d": device_id}).first())
+            return _view(c.execute(text(f"SELECT {_COLS} FROM devices WHERE id=:d AND deleted_at IS NULL"), {"d": device_id}).first())
     except IntegrityError:
         raise AppError(409, "DEVICE_EXISTS_IN_ROOM", "Phòng này đã có thiết bị cùng loại đang hoạt động")
 
@@ -111,7 +118,19 @@ def rotate_key(device_id: str):
     device_id = _uuid(device_id)
     key, key_hash = _new_key()
     with engine().begin() as c:
-        n = c.execute(text("UPDATE devices SET api_key_hash=:h WHERE id=:d"), {"h": key_hash, "d": device_id}).rowcount
+        n = c.execute(text("UPDATE devices SET api_key_hash=:h WHERE id=:d AND deleted_at IS NULL"), {"h": key_hash, "d": device_id}).rowcount
     if n == 0:
         raise AppError(404, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại")
     return {"id": device_id, "apiKey": key, "note": "Lưu khóa này ngay, hệ thống không hiển thị lại"}
+
+
+@router.delete("/{device_id}", summary="Xóa mềm thiết bị, giữ lịch sử đo và ảnh")
+def delete_device(device_id: str):
+    device_id = _uuid(device_id)
+    _, invalid_hash = _new_key()
+    with engine().begin() as c:
+        n = c.execute(text("""UPDATE devices SET status='INACTIVE', deleted_at=now(), api_key_hash=:h
+                              WHERE id=:d AND deleted_at IS NULL"""), {"d": device_id, "h": invalid_hash}).rowcount
+    if not n:
+        raise AppError(404, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại")
+    return {"deleted": True}
