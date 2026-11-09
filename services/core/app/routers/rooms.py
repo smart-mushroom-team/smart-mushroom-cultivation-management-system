@@ -52,6 +52,35 @@ def list_rooms(_: CurrentUser = Depends(current_user)):
         return [_room_row(r) for r in c.execute(text("SELECT id,name,status FROM rooms ORDER BY name"))]
 
 
+@router.get("/rental-availability", summary="Customer: sơ đồ khay khả dụng theo phòng")
+def rental_availability(_=Depends(require_roles("CUSTOMER"))):
+    """Chỉ trả phòng ACTIVE và khay/vị trí; không tiết lộ khách đang thuê."""
+    with engine().connect() as c:
+        rooms = c.execute(text("SELECT id,name FROM rooms WHERE status='ACTIVE' ORDER BY name")).all()
+        trays = c.execute(text("""SELECT t.id,t.tray_code,t.room_id,t.location_row,t.location_shelf,
+                                t.location_slot,t.occupancy_status
+                                FROM trays t JOIN rooms r ON r.id=t.room_id
+                                WHERE r.status='ACTIVE'
+                                ORDER BY t.location_row,t.location_shelf,t.location_slot""")).all()
+    by_room = {str(room.id): [] for room in rooms}
+    for tray in trays:
+        by_room[str(tray.room_id)].append({
+            "id": str(tray.id), "code": tray.tray_code,
+            "row": tray.location_row, "shelf": tray.location_shelf, "slot": tray.location_slot,
+            "status": tray.occupancy_status,
+        })
+    result = []
+    for room in rooms:
+        items = by_room[str(room.id)]
+        available = sum(t["status"] == "AVAILABLE" for t in items)
+        rented = sum(t["status"] == "RENTED" for t in items)
+        result.append({"id": str(room.id), "name": room.name,
+                       "empty": 32 - len(items), "available": available,
+                       "rented": rented, "other": len(items) - available - rented,
+                       "trays": items})
+    return result
+
+
 @router.post("/rooms", status_code=201)
 def create_room(body: RoomIn, _=Depends(require_roles("ADMIN"))):
     with engine().begin() as c:
