@@ -13,6 +13,9 @@ import { Notifications } from './pages/Notifications'
 import { RoomDetail } from './pages/RoomDetail'
 import { Users } from './pages/Users'
 import { Varieties } from './pages/Varieties'
+import { TrayClearance } from './pages/TrayClearance'
+import { RentalOrders } from './pages/RentalOrders'
+import { Policies } from './pages/Policies'
 import { NotFound } from './pages/NotFound'
 
 // Các bước sau thêm route vào trong <Layout>, bọc bằng <RequireRole roles={[...]}> khi chức năng chỉ dành cho một vai trò.
@@ -31,8 +34,11 @@ export function App() {
           <Route path="giong-nam" element={<Varieties />} />
           <Route element={<RequireRole roles={['ADMIN', 'OPERATOR']} />}>
             <Route path="danh-muc" element={<Catalog />} />
+            <Route path="ban-giao-khay" element={<TrayClearance />} />
           </Route>
           <Route element={<RequireRole roles={['ADMIN']} />}>
+            <Route path="don-thue" element={<RentalOrders />} />
+            <Route path="chinh-sach" element={<Policies />} />
             <Route path="nguoi-dung" element={<Users />} />
             <Route path="demo" element={<Demo />} />
           </Route>

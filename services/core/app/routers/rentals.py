@@ -73,6 +73,15 @@ def _create_rental(body: RentalIn, user: CurrentUser):
         if not pkg:
             raise AppError(404, "PACKAGE_NOT_FOUND", "Gói thuê không tồn tại hoặc đã tắt")
         v_name, v_id, v_status = variety.resolve(c, body)
+        # Catalog varieties require a package explicitly assigned to them.
+        # Custom varieties (not in catalog) can only use GENERAL packages.
+        scope = c.execute(text('SELECT package_scope FROM rental_packages WHERE id=:i'),{'i':pkg.id}).scalar()
+        if v_id:
+            matched=c.execute(text('SELECT 1 FROM rental_package_varieties WHERE package_id=:p AND variety_id=CAST(:v AS uuid)'),{'p':pkg.id,'v':v_id}).scalar()
+            if scope!='VARIETY' or not matched:
+                raise AppError(409,'PACKAGE_VARIETY_MISMATCH','Giống trong danh mục cần chọn gói dành riêng cho giống đó')
+        elif scope!='GENERAL':
+            raise AppError(409,'PACKAGE_VARIETY_MISMATCH','Giống tự nhập chỉ được chọn gói thuê chung')
         if body.trayIds is not None:
             # Lock theo thứ tự ổn định để tránh deadlock giữa các đơn cùng chọn khay.
             tray_ids = sorted(body.trayIds)
@@ -97,11 +106,12 @@ def _create_rental(body: RentalIn, user: CurrentUser):
         if not simulate_payment(total):
             raise AppError(402, "PAYMENT_FAILED", "Thanh toán thất bại")            # UC-02 4b
         end = start + dt.timedelta(days=pkg.duration_days - 1)                      # BR-05: tính cả hai đầu mút
+        policy_version=c.execute(text('SELECT max(version) FROM rental_policies')).scalar()
         rid = c.execute(text("""INSERT INTO rentals(customer_id,customer_name,package_id,package_name,duration_days,
-                                    price_per_tray,tray_count,total_amount,start_date,end_date,room_id)
-                                VALUES (:cid,:cn,:pid,:pn,:dd,:pp,:tc,:ta,:s,:e,CAST(:room AS uuid)) RETURNING id"""),
+                                    price_per_tray,tray_count,total_amount,start_date,end_date,room_id,policy_version)
+                                VALUES (:cid,:cn,:pid,:pn,:dd,:pp,:tc,:ta,:s,:e,CAST(:room AS uuid),:policy) RETURNING id"""),
                         {"cid": user.id, "cn": user.name, "pid": pkg.id, "pn": pkg.name, "dd": pkg.duration_days,
-                         "pp": pkg.price_per_tray, "tc": quantity, "ta": total, "s": start, "e": end, "room": actual_room_id}).scalar()
+                         "pp": pkg.price_per_tray, "tc": quantity, "ta": total, "s": start, "e": end, "room": actual_room_id,"policy":policy_version}).scalar()
         for tid in tray_ids:
             c.execute(text("INSERT INTO rental_trays(rental_id,tray_id) VALUES (:r,:t)"), {"r": rid, "t": tid})
             c.execute(text("INSERT INTO cultivation_cycles(rental_id,tray_id,start_date,variety,variety_id,variety_status) "
@@ -134,3 +144,10 @@ def my_rentals(user: CurrentUser = Depends(require_roles("CUSTOMER"))):
                               "(SELECT count(*) FROM cultivation_cycles cc WHERE cc.rental_id=rentals.id AND cc.status='GROWING') AS growing_count "
                               "FROM rentals WHERE customer_id=:u ORDER BY created_at DESC"), {"u": user.id})
         return [dict(r._mapping, id=str(r.id)) for r in rows]
+
+
+@router.get('/all', summary='Admin: tất cả đơn thuê')
+def all_rentals(_=Depends(require_roles('ADMIN'))):
+    with engine().connect() as c:
+        rows=c.execute(text('SELECT id,customer_name,package_name,tray_count,status,start_date,end_date,total_amount FROM rentals ORDER BY created_at DESC'))
+        return [dict(r._mapping, id=str(r.id), start_date=r.start_date.isoformat(), end_date=r.end_date.isoformat(), total_amount=float(r.total_amount)) for r in rows]

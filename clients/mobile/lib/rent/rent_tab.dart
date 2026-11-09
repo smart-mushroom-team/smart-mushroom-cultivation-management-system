@@ -77,7 +77,7 @@ class _RentTabState extends State<RentTab> {
   }
 
   RentalPackage? get _package {
-    for (final p in _packages?.packages ?? <RentalPackage>[]) {
+    for (final p in _eligiblePackages) {
       if (p.id == _packageId) return p;
     }
     return null;
@@ -93,10 +93,15 @@ class _RentTabState extends State<RentTab> {
   }
 
   Future<void> _chooseVariety() async {
-    final v = await showVarietySheet(context, repo: _repo,
-      currentName: _variety.label, allowLater: false);
-    if (v != null && mounted && !v.isNone) setState(() => _variety = v);
+  final v = await showVarietySheet(context, repo: _repo,
+    currentName: _variety.label, allowLater: false);
+  if (v != null && mounted && !v.isNone) {
+    setState(() {
+      _variety = v;
+      _packageId = null;
+    });
   }
+}
 
   Future<void> _pay() async {
     final room = _room;
@@ -306,16 +311,24 @@ class _RentTabState extends State<RentTab> {
       child: Notice('Đơn thuê sẽ được tạo, nhưng giống nhập tay cần Operator phê duyệt trước khi tiếp tục nuôi.')),
   ]);
 
+  List<RentalPackage> get _eligiblePackages {
+    final all=_packages?.packages ?? <RentalPackage>[];
+    if (_variety.catalog != null) {
+      return all.where((p)=>p.scope=='VARIETY' && p.varietyIds.contains(_variety.catalog!.id)).toList();
+    }
+    return all.where((p)=>p.scope=='GENERAL').toList();
+  }
+
   Widget _packagesView() => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
     const Text('Tất cả khay trong đơn sử dụng cùng một gói thuê.',
       style: TextStyle(color: AppColors.mute)),
     const SizedBox(height: 12),
-    if (_packages!.packages.isEmpty) const Notice('Hiện không có gói thuê đang bán.'),
+    if (_eligiblePackages.isEmpty) const Notice('Chưa có gói thuê phù hợp với giống nấm đã chọn.'),
     RadioGroup<String>(
       groupValue: _packageId,
       onChanged: (id) => setState(() => _packageId = id),
       child: Column(children: [
-        for (final pkg in _packages!.packages)
+        for (final pkg in _eligiblePackages)
           Card(child: RadioListTile<String>(
             value: pkg.id,
             title: Text(pkg.name),

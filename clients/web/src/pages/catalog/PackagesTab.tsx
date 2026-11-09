@@ -6,18 +6,20 @@ import { Notice } from '../../components/Notice'
 import { money } from '../../lib/catalog'
 import { input, primary } from './ui'
 import { useAuth } from '../../auth/AuthContext'
+import { api } from '../../api/http'
 
-function PackageCard({ pack, canEdit }: { pack: Pack; canEdit: boolean }) {
+function PackageCard({ pack, canEdit, varieties }: { pack: Pack; canEdit: boolean; varieties: {id:string;name:string}[] }) {
   const qc = useQueryClient()
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState(pack.name)
   const [days, setDays] = useState(String(pack.durationDays))
   const [price, setPrice] = useState(String(pack.pricePerTray))
+  const [varietyIds,setVarietyIds]=useState<string[]>(pack.varietyIds)
   const duration = Number(days)
   const amount = Number(price)
   const valid = name.trim().length > 0 && Number.isSafeInteger(duration) && duration > 0 && Number.isSafeInteger(amount) && amount > 0
   const mutation = useMutation({
-    mutationFn: (data: { name?: string; durationDays?: number; pricePerTray?: number; isActive?: boolean }) => patchPackage(pack.id, data),
+    mutationFn: (data: { name?: string; durationDays?: number; pricePerTray?: number; isActive?: boolean; varietyIds?: string[] }) => patchPackage(pack.id, data),
     onSuccess: async () => { setEditing(false); await qc.invalidateQueries({ queryKey: ['packages-all'] }) },
   })
   return <div className="rounded-xl border border-line bg-paper p-4 space-y-3">
@@ -26,11 +28,13 @@ function PackageCard({ pack, canEdit }: { pack: Pack; canEdit: boolean }) {
       <label className="block text-sm">Thời hạn (ngày)<input className={`${input} mt-1 w-full`} type="number" min="1" step="1" value={days} onChange={e => setDays(e.target.value)} /></label>
       <label className="block text-sm">Giá mỗi khay cho cả gói (VNĐ)<input className={`${input} mt-1 w-full`} type="number" min="1" step="1" value={price} onChange={e => setPrice(e.target.value)} /></label>
       <p className="text-sm text-mute">Giá trung bình/ngày: {valid ? money(amount / duration) : '—'}</p>
-      <div className="flex gap-2"><button type="button" className={primary} disabled={!valid || mutation.isPending} onClick={() => mutation.mutate({ name: name.trim(), durationDays: duration, pricePerTray: amount })}>Lưu thay đổi</button><button type="button" onClick={() => setEditing(false)}>Hủy</button></div>
+      <fieldset className="space-y-1"><legend className="text-sm font-medium">Giống áp dụng (không chọn = gói chung)</legend>{varieties.map(v=><label key={v.id} className="flex gap-2 text-sm"><input type="checkbox" checked={varietyIds.includes(v.id)} onChange={e=>setVarietyIds(ids=>e.target.checked?[...ids,v.id]:ids.filter(x=>x!==v.id))}/>{v.name}</label>)}</fieldset>
+      <div className="flex gap-2"><button type="button" className={primary} disabled={!valid || mutation.isPending} onClick={() => mutation.mutate({ name: name.trim(), durationDays: duration, pricePerTray: amount, varietyIds })}>Lưu thay đổi</button><button type="button" onClick={() => setEditing(false)}>Hủy</button></div>
     </> : <>
       <div className="flex items-center justify-between gap-2"><h3 className="font-display text-lg font-semibold">{pack.name}</h3><span className="text-sm text-mute">{pack.active ? 'Đang bán' : 'Đã tắt'}</span></div>
       <p className="text-sm text-mute">{pack.durationDays} ngày | {money(pack.pricePerTray)}/khay | {money(pack.pricePerTray / pack.durationDays)}/ngày</p>
-      {canEdit && <div className="flex gap-3"><button type="button" className={primary} onClick={() => { setName(pack.name); setDays(String(pack.durationDays)); setPrice(String(pack.pricePerTray)); setEditing(true) }}>Chỉnh sửa</button><button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate({ isActive: !pack.active })}>{pack.active ? 'Tắt gói' : 'Bật gói'}</button></div>}
+      <p className="text-xs text-mute">{pack.scope==='VARIETY' ? `Dành riêng: ${varieties.filter(v=>pack.varietyIds.includes(v.id)).map(v=>v.name).join(', ')}` : 'Gói chung cho giống tự nhập'}</p>
+      {canEdit && <div className="flex gap-3"><button type="button" className={primary} onClick={() => { setName(pack.name); setDays(String(pack.durationDays)); setPrice(String(pack.pricePerTray));setVarietyIds(pack.varietyIds); setEditing(true) }}>Chỉnh sửa</button><button type="button" disabled={mutation.isPending} onClick={() => mutation.mutate({ isActive: !pack.active })}>{pack.active ? 'Tắt gói' : 'Bật gói'}</button></div>}
     </>}
     {mutation.isError && <Notice tone="error">{describeError(mutation.error)}</Notice>}
   </div>
@@ -45,12 +49,14 @@ export function PackagesTab() {
   const [name, setName] = useState('')
   const [days, setDays] = useState('60')
   const [price, setPrice] = useState('600000')
+  const [varietyIds,setVarietyIds]=useState<string[]>([])
+  const varieties=useQuery({queryKey:['varieties-package'],queryFn:()=>api<{id:string;name:string}[]>('/api/core/varieties')})
   const duration = Number(days)
   const amount = Number(price)
   const valid = name.trim().length > 0 && Number.isSafeInteger(duration) && duration > 0 && Number.isSafeInteger(amount) && amount > 0
   const create = useMutation({
-    mutationFn: () => createPackage({ name: name.trim(), durationDays: duration, pricePerTray: amount }),
-    onSuccess: async () => { setShowForm(false); setName(''); await qc.invalidateQueries({ queryKey: ['packages-all'] }) },
+    mutationFn: () => createPackage({ name: name.trim(), durationDays: duration, pricePerTray: amount, varietyIds }),
+    onSuccess: async () => { setShowForm(false); setName('');setVarietyIds([]); await qc.invalidateQueries({ queryKey: ['packages-all'] }) },
   })
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-mute">Giá/ngày được tính tự động từ giá gói / số ngày. Tổng tiền đơn thuê luôn dùng giá gói.</p>{canEdit && <button type="button" className={primary} onClick={() => setShowForm(v => !v)}>{showForm ? 'Đóng' : '+ Tạo gói'}</button>}</div>
@@ -60,9 +66,10 @@ export function PackagesTab() {
       <label className="block text-sm">Số ngày thuê<input className={`${input} mt-1 w-full`} type="number" min="1" step="1" value={days} onChange={e => setDays(e.target.value)} required /></label>
       <label className="block text-sm">Giá thuê 1 khay cho cả gói (VNĐ)<input className={`${input} mt-1 w-full`} type="number" min="1" step="1" value={price} onChange={e => setPrice(e.target.value)} required /></label>
       <p className="text-sm font-medium">Giá trung bình/ngày: {valid ? money(amount / duration) : '—'}</p>
+      <fieldset className="space-y-1"><legend className="text-sm font-medium">Giống áp dụng (không chọn = gói chung)</legend>{(varieties.data??[]).map(v=><label key={v.id} className="flex gap-2 text-sm"><input type="checkbox" checked={varietyIds.includes(v.id)} onChange={e=>setVarietyIds(ids=>e.target.checked?[...ids,v.id]:ids.filter(x=>x!==v.id))}/>{v.name}</label>)}</fieldset>
       <button type="submit" className={primary} disabled={!valid || create.isPending}>{create.isPending ? 'Đang tạo...' : 'Tạo gói'}</button>
       {create.isError && <Notice tone="error">{describeError(create.error)}</Notice>}
     </form>}
-    {q.isPending ? <p>Đang tải...</p> : q.isError ? <Notice tone="error">Không tải được gói thuê: {describeError(q.error)}</Notice> : q.data?.length ? <div className="grid gap-4 md:grid-cols-2">{q.data.map(pack => <PackageCard key={pack.id} pack={pack} canEdit={canEdit} />)}</div> : <p className="text-sm text-mute">Chưa có gói thuê.</p>}
+    {q.isPending ? <p>Đang tải...</p> : q.isError ? <Notice tone="error">Không tải được gói thuê: {describeError(q.error)}</Notice> : q.data?.length ? <div className="grid gap-4 md:grid-cols-2">{q.data.map(pack => <PackageCard key={pack.id} pack={pack} canEdit={canEdit} varieties={varieties.data??[]} />)}</div> : <p className="text-sm text-mute">Chưa có gói thuê.</p>}
   </div>
 }

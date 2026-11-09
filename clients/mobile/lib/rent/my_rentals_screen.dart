@@ -186,6 +186,8 @@ class RentalDetailScreen extends StatefulWidget {
 }
 
 class _RentalDetailScreenState extends State<RentalDetailScreen> {
+  List<Map<String,dynamic>> _requests=[];
+  bool _sending=false;
   TraysData? _data;
   Object? _error;
   int _page = 1;
@@ -198,16 +200,35 @@ class _RentalDetailScreenState extends State<RentalDetailScreen> {
 
   Future<void> _load() async {
     try {
+      final reqs=await RentalRepository(widget.auth.api).myTerminations();
       final d = await TrayRepository(widget.auth.api).myTrays(status: 'ALL', rentalStatus: 'ALL', rentalId: widget.rental.id);
       if (mounted) {
         setState(() {
           _data = d;
+          _requests = reqs.where((r)=>r['rental_id']==widget.rental.id).toList();
           _error = null;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _error = e);
     }
+  }
+
+  Future<void> _requestTermination() async {
+    final values = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => const _TerminationBankDialog(),
+    );
+    if (!mounted) return;
+    if(values==null||values.any((s)=>s.isEmpty)||_sending)return;
+    setState(()=>_sending=true);
+    try{
+      final r=await RentalRepository(widget.auth.api).requestTermination(widget.rental.id,bankName:values[0],accountNumber:values[1],accountHolder:values[2]);
+      if(!mounted)return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Đã gửi yêu cầu. Hoàn dự kiến: ${formatVnd(r['refund_amount'] as num)}')));
+      await _load();
+    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(describeError(e))));}
+    finally{if(mounted)setState(()=>_sending=false);}
   }
 
   @override
@@ -227,7 +248,15 @@ class _RentalDetailScreenState extends State<RentalDetailScreen> {
             _info('Giá mỗi khay', formatVnd(r.pricePerTray)),
             _info('Tổng tiền', formatVnd(r.totalAmount), key: 'detail-total'),
             const SizedBox(height: 16),
-            const Text('Các khay của đơn', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            if (_requests.isNotEmpty) ...[
+              for (final req in _requests) Padding(padding:const EdgeInsets.only(bottom:8),child:Text(
+                'Yêu cầu kết thúc: ${req['status']} · còn ${req['remaining_days']} ngày · hoàn ${formatVnd(req['refund_amount'] as num)}${req['rejection_reason']!=null ? ' · Lý do: ${req['rejection_reason']}' : ''}',
+              )),
+            ],
+            if(r.isActive && r.growingCount==0 && !_requests.any((req)=>['PENDING_REVIEW','APPROVED','REFUNDED'].contains(req['status'])))
+              FilledButton(onPressed:_sending?null:_requestTermination,child:const Text('Yêu cầu kết thúc gói thuê')),
+            const SizedBox(height: 16),
+            const Text('Các khay của đơn' , style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
             const SizedBox(height: 8),
             if (d == null && _error != null) ...[
               Notice('Không tải được khay của đơn. ${describeError(_error!)}', tone: NoticeTone.error),
@@ -261,6 +290,81 @@ class _RentalDetailScreenState extends State<RentalDetailScreen> {
           SizedBox(width: 120, child: Text(label, style: const TextStyle(color: AppColors.mute))),
           Expanded(child: Text(value, key: key == null ? null : Key(key), style: const TextStyle(fontWeight: FontWeight.w600))),
         ]),
+      );
+}
+
+/// Form độc lập để TextEditingController được dispose cùng State của dialog.
+class _TerminationBankDialog extends StatefulWidget {
+  const _TerminationBankDialog();
+
+  @override
+  State<_TerminationBankDialog> createState() => _TerminationBankDialogState();
+}
+
+class _TerminationBankDialogState extends State<_TerminationBankDialog> {
+  final _bank = TextEditingController();
+  final _account = TextEditingController();
+  final _holder = TextEditingController();
+
+  @override
+  void dispose() {
+    _bank.dispose();
+    _account.dispose();
+    _holder.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Yêu cầu kết thúc thuê sớm'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Chỉ gửi khi mọi đợt nuôi đã thu hoạch hoặc kết thúc. '
+                'Tiền hoàn được khóa khi gửi yêu cầu hợp lệ; '
+                'Admin sẽ duyệt và chuyển khoản thủ công.',
+              ),
+              TextField(
+                controller: _bank,
+                decoration: const InputDecoration(labelText: 'Tên ngân hàng'),
+              ),
+              TextField(
+                controller: _account,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Số tài khoản'),
+              ),
+              TextField(
+                controller: _holder,
+                decoration: const InputDecoration(labelText: 'Tên chủ tài khoản'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final values = [
+                _bank.text.trim(),
+                _account.text.trim(),
+                _holder.text.trim(),
+              ];
+              if (values.any((value) => value.isEmpty)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Vui lòng nhập đầy đủ thông tin ngân hàng.')),
+                );
+                return;
+              }
+              Navigator.pop(context, values);
+            },
+            child: const Text('Gửi yêu cầu'),
+          ),
+        ],
       );
 }
 

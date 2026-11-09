@@ -15,7 +15,8 @@ def try_complete(conn, rental_id: str) -> bool:
     done = conn.execute(text("""
         UPDATE rentals r SET status='COMPLETED'
         WHERE r.id=:id AND r.status='EXPIRED'
-          AND NOT EXISTS (SELECT 1 FROM cultivation_cycles c WHERE c.rental_id=r.id AND c.status='GROWING')"""),
+          AND NOT EXISTS (SELECT 1 FROM cultivation_cycles c WHERE c.rental_id=r.id AND c.status='GROWING')
+          AND NOT EXISTS (SELECT 1 FROM rental_termination_requests t WHERE t.rental_id=r.id AND t.status IN ('PENDING_REVIEW','APPROVED','REFUNDED'))"""),
         {"id": rental_id}).rowcount == 1
     if done:
         conn.execute(text("""UPDATE trays SET occupancy_status='AVAILABLE'
