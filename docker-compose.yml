@@ -9,6 +9,8 @@ services:
   # ---------------- hạ tầng ----------------
   postgres:
     image: postgres:16-alpine
+    ports:
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       IDENTITY_DB_PASSWORD: ${IDENTITY_DB_PASSWORD}
@@ -22,7 +24,10 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       retries: 20
-    deploy: { resources: { limits: { memory: 512m } } }
+    deploy:
+      resources:
+        limits:
+          memory: 512m
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine

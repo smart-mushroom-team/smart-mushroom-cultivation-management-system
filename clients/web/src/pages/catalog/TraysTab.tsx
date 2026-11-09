@@ -4,11 +4,14 @@ import { createTray, deleteTray, listRooms, listTrays, type Tray } from '../../a
 import { describeError } from '../../api/http'
 import { Notice } from '../../components/Notice'
 import { input, primary } from './ui'
+import { useAuth } from '../../auth/AuthContext'
 
 const positions = Array.from({ length: 32 }, (_, i) => ({ row: Math.floor(i / 8) + 1, shelf: Math.floor(i % 8 / 4) + 1, slot: i % 4 + 1 }))
 const positionKey = (row: number, shelf: number, slot: number) => `${row}-${shelf}-${slot}`
 
 export function TraysTab() {
+  const { session } = useAuth()
+  const canEdit = session?.role === 'ADMIN'
   const qc = useQueryClient()
   const rooms = useQuery({ queryKey: ['rooms'], queryFn: listRooms })
   const trays = useQuery({ queryKey: ['trays'], queryFn: listTrays })
@@ -17,7 +20,7 @@ export function TraysTab() {
   const [selected, setSelected] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
-  const activeRooms = useMemo(() => (rooms.data ?? []).filter(r => r.status === 'ACTIVE' && r.name.toLowerCase().includes(search.toLowerCase())), [rooms.data, search])
+  const activeRooms = useMemo(() => (rooms.data ?? []).filter(r => (canEdit ? r.status === 'ACTIVE' : true) && r.name.toLowerCase().includes(search.toLowerCase())), [rooms.data, search])
   useEffect(() => { if (!roomId && activeRooms.length) setRoomId(activeRooms[0].id) }, [activeRooms, roomId])
   const current = rooms.data?.find(r => r.id === roomId)
   const occupied = new Map<string, Tray>((trays.data ?? []).filter(t => t.roomId === roomId).map(t => [positionKey(t.row,t.shelf,t.slot),t]))
@@ -39,7 +42,7 @@ export function TraysTab() {
     {trays.isError && <Notice tone="error">Không tải được khay: {describeError(trays.error)}</Notice>}
     {current && <div className="rounded-lg border border-line bg-paper p-4 space-y-4">
       <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">Sơ đồ {current.name}</h3><span className="text-sm text-mute">{occupied.size}/32 vị trí đã có khay</span></div>
-      <p className="text-sm text-mute">4 hàng × 2 kệ × 4 ô. Chọn một ô để thêm khay; ô đã có khay hiển thị mã và trạng thái.</p>
+      <p className="text-sm text-mute">4 hàng × 2 kệ × 4 ô. {canEdit ? 'Chọn một ô để thêm khay; ô đã có khay hiển thị mã và trạng thái.' : 'Chọn một ô để xem thông tin khay; không thể thay đổi dữ liệu.'}</p>
       <div className="space-y-4">{[1,2,3,4].map(row => <section key={row}>
         <h4 className="mb-2 font-semibold">Hàng {row}</h4>
         <div className="grid gap-3 md:grid-cols-2">{[1,2].map(shelf => <div key={shelf} className="rounded-lg border border-line p-3">
@@ -56,11 +59,11 @@ export function TraysTab() {
     {place && <div className="rounded-lg border border-line bg-paper p-4 space-y-3">
       <h3 className="font-semibold">Vị trí H{place.row}-K{place.shelf}-O{place.slot}</h3>
       {selectedTray ? <><p className="text-sm">Khay {selectedTray.code} — {selectedTray.occupancy === 'RENTED' ? 'Đang thuê' : 'Sẵn sàng'}</p>
-        <button type="button" className="rounded border border-line px-3 py-2 text-sm" disabled={selectedTray.occupancy === 'RENTED' || remove.isPending} onClick={() => { if (window.confirm(`Xóa khay ${selectedTray.code}?`)) remove.mutate(selectedTray.id) }}>Xóa khay chưa từng thuê</button>
-      </> : <form onSubmit={e => { e.preventDefault(); if (code.trim()) add.mutate() }} className="flex flex-wrap items-end gap-3">
+        {canEdit && <button type="button" className="rounded border border-line px-3 py-2 text-sm" disabled={selectedTray.occupancy === 'RENTED' || remove.isPending} onClick={() => { if (window.confirm(`Xóa khay ${selectedTray.code}?`)) remove.mutate(selectedTray.id) }}>Xóa khay chưa từng thuê</button>}
+      </> : canEdit ? <form onSubmit={e => { e.preventDefault(); if (code.trim()) add.mutate() }} className="flex flex-wrap items-end gap-3">
         <div className="flex-1"><label htmlFor="new-tray-code" className="block text-sm font-medium">Mã khay</label><input id="new-tray-code" className={input} maxLength={50} value={code} onChange={e => setCode(e.target.value)} placeholder="VD: A-H1-K1-O2" /></div>
         <button type="submit" className={primary} disabled={!code.trim() || add.isPending}>Thêm khay vào ô</button>
-      </form>}
+      </form> : <p className="text-sm text-mute">Ô này chưa có khay.</p>}
       {error && <Notice tone="error">{error}</Notice>}
     </div>}
     {!current && <p className="text-sm text-mute">Chọn một phòng đang hoạt động để xem sơ đồ.</p>}

@@ -1,4 +1,4 @@
-"""FR-07, FR-08: phòng và khay (Admin/Operator).
+"""FR-07, FR-08: Admin chỉnh sửa phòng/khay; Operator chỉ xem.
 
 Quy tắc:
   * Ngừng phòng (INACTIVE) bị từ chối khi phòng còn khay RENTED (409 ROOM_HAS_RENTED_TRAYS).
@@ -53,13 +53,13 @@ def list_rooms(_: CurrentUser = Depends(current_user)):
 
 
 @router.post("/rooms", status_code=201)
-def create_room(body: RoomIn, _=Depends(require_roles("OPERATOR"))):
+def create_room(body: RoomIn, _=Depends(require_roles("ADMIN"))):
     with engine().begin() as c:
         return {"id": str(c.execute(text("INSERT INTO rooms(name) VALUES (:n) RETURNING id"), {"n": body.name}).scalar())}
 
 
 @router.patch("/rooms/{room_id}", summary="Sửa tên / ngừng hoặc bật lại phòng")
-def update_room(room_id: str, body: RoomPatch, _=Depends(require_roles("OPERATOR"))):
+def update_room(room_id: str, body: RoomPatch, _=Depends(require_roles("ADMIN"))):
     with engine().begin() as c:
         room = c.execute(text("SELECT id,name,status FROM rooms WHERE id=:i FOR UPDATE"), {"i": room_id}).first()
         if not room:
@@ -90,12 +90,33 @@ def list_trays(roomId: str | None = None, _=Depends(require_roles("OPERATOR"))):
         return [_tray_row(r) for r in rows]
 
 
+def _lock_room_positions(c, room_ids):
+    """Serialize tray placement changes per room, including concurrent API requests."""
+    for room_id in sorted(set(str(value) for value in room_ids)):
+        c.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:room_id, 0))"), {"room_id": room_id})
+
+
+def _ensure_position_empty(c, room_id, row, shelf, slot, exclude_tray_id=None):
+    occupied = c.execute(text("""
+        SELECT 1 FROM trays
+        WHERE room_id = CAST(:room_id AS uuid)
+          AND location_row = :row AND location_shelf = :shelf AND location_slot = :slot
+          AND (CAST(:exclude_id AS uuid) IS NULL OR id <> CAST(:exclude_id AS uuid))
+        LIMIT 1
+    """), {"room_id": room_id, "row": row, "shelf": shelf, "slot": slot,
+           "exclude_id": exclude_tray_id}).first()
+    if occupied:
+        raise AppError(409, "TRAY_POSITION_OCCUPIED", "Ô này đã có khay, vui lòng chọn ô khác")
+
+
 @router.post("/trays", status_code=201)
-def create_tray(body: TrayIn, _=Depends(require_roles("OPERATOR"))):
+def create_tray(body: TrayIn, _=Depends(require_roles("ADMIN"))):
     try:
         with engine().begin() as c:
             if not c.execute(text("SELECT 1 FROM rooms WHERE id=:i AND status='ACTIVE'"), {"i": body.roomId}).first():
                 raise AppError(404, "ROOM_NOT_FOUND", "Phòng không tồn tại")
+            _lock_room_positions(c, [body.roomId])
+            _ensure_position_empty(c, body.roomId, body.row, body.shelf, body.slot)
             tid = c.execute(text("""INSERT INTO trays(tray_code,room_id,location_row,location_shelf,location_slot)
                                     VALUES (:c,:r,:a,:b,:d) RETURNING id"""),
                             {"c": body.trayCode, "r": body.roomId, "a": body.row, "b": body.shelf, "d": body.slot}).scalar()
@@ -105,7 +126,7 @@ def create_tray(body: TrayIn, _=Depends(require_roles("OPERATOR"))):
 
 
 @router.patch("/trays/{tray_id}", summary="Sửa mã / vị trí khay (đổi phòng chỉ khi khay đang AVAILABLE)")
-def update_tray(tray_id: str, body: TrayPatch, _=Depends(require_roles("OPERATOR"))):
+def update_tray(tray_id: str, body: TrayPatch, _=Depends(require_roles("ADMIN"))):
     try:
         with engine().begin() as c:
             tray = c.execute(text("SELECT * FROM trays WHERE id=:i FOR UPDATE"), {"i": tray_id}).first()
@@ -116,6 +137,12 @@ def update_tray(tray_id: str, body: TrayPatch, _=Depends(require_roles("OPERATOR
                     raise AppError(409, "TRAY_RENTED", "Khay đang được thuê, không thể chuyển phòng")
                 if not c.execute(text("SELECT 1 FROM rooms WHERE id=:i AND status='ACTIVE'"), {"i": body.roomId}).first():
                     raise AppError(404, "ROOM_NOT_FOUND", "Phòng không tồn tại")
+            target_room = body.roomId or str(tray.room_id)
+            target_row = body.row if body.row is not None else tray.location_row
+            target_shelf = body.shelf if body.shelf is not None else tray.location_shelf
+            target_slot = body.slot if body.slot is not None else tray.location_slot
+            _lock_room_positions(c, [tray.room_id, target_room])
+            _ensure_position_empty(c, target_room, target_row, target_shelf, target_slot, tray_id)
             c.execute(text("""UPDATE trays SET tray_code=COALESCE(:c,tray_code), room_id=COALESCE(CAST(:r AS uuid),room_id),
                               location_row=COALESCE(:a,location_row), location_shelf=COALESCE(:b,location_shelf),
                               location_slot=COALESCE(:d,location_slot) WHERE id=:i"""),
@@ -126,7 +153,7 @@ def update_tray(tray_id: str, body: TrayPatch, _=Depends(require_roles("OPERATOR
 
 
 @router.delete("/trays/{tray_id}", status_code=204, summary="Xóa khay chưa từng thuê")
-def delete_tray(tray_id: str, _=Depends(require_roles("OPERATOR"))):
+def delete_tray(tray_id: str, _=Depends(require_roles("ADMIN"))):
     with engine().begin() as c:
         if not c.execute(text("SELECT 1 FROM trays WHERE id=:i FOR UPDATE"), {"i": tray_id}).first():
             raise AppError(404, "TRAY_NOT_FOUND", "Khay không tồn tại")

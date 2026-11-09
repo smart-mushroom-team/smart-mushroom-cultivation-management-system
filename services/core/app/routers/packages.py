@@ -39,7 +39,7 @@ def list_packages(_: CurrentUser = Depends(current_user)):
 
 
 @router.get("/all", summary="FR-10: Admin xem tất cả gói, kể cả gói đã tắt")
-def list_all(_=Depends(require_roles("ADMIN"))):
+def list_all(_=Depends(require_roles("OPERATOR"))):
     with engine().connect() as c:
         return [_row(r) for r in c.execute(text("SELECT id,name,duration_days,price_per_tray,is_active "
                                                 "FROM rental_packages ORDER BY is_active DESC, duration_days"))]
