@@ -22,9 +22,32 @@ export function apiError(status: number, code: string, message: string) {
 }
 
 export function storedSession(role: 'ADMIN' | 'OPERATOR') {
+  const payload = {
+    sub: 'u1',
+    role,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  }
+
+  const encode = (value: object) =>
+    btoa(JSON.stringify(value))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+
+  const token = [
+    encode({ alg: 'HS256', typ: 'JWT' }),
+    encode(payload),
+    'test-signature',
+  ].join('.')
+
   localStorage.setItem(
     'mushroom.session',
-    JSON.stringify({ token: 'token', role, name: 'Test', expiresAt: Date.now() + 60_000 }),
+    JSON.stringify({
+      token,
+      role,
+      name: 'Test',
+      expiresAt: Date.now() + 3_600_000,
+    }),
   )
 }
 
@@ -34,7 +57,16 @@ export function mockApi(routes: Record<string, () => Response | Promise<Response
     const url = String(input)
     const key = `${init?.method ?? 'GET'} ${url.replace(/^https?:\/\/[^/]+/, '')}`
     calls.push({ key, init })
-    return routes[key]?.() ?? json({ error: { code: 'NOT_FOUND', message: key } }, { status: 404 })
+    const pathOnly = key.split('?')[0]
+
+return (
+  routes[key]?.() ??
+  routes[pathOnly]?.() ??
+  json(
+    { error: { code: 'NOT_FOUND', message: key } },
+    { status: 404 }
+  )
+)
   })
   return { fn, calls }
 }

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { listRooms } from '../api/core'
-import { createDevice, listDevices, patchDevice, rotateKey, type Device, type DeviceType, type KeyResult } from '../api/devices'
+import { createDevice, deleteDevice, listDevices, patchDevice, rotateKey, type Device, type DeviceType, type KeyResult } from '../api/devices'
 import { describeError } from '../api/http'
 import { Notice } from '../components/Notice'
 import { OFFLINE_HINT, TYPE_LABEL, parseInterval } from '../lib/device'
@@ -19,6 +19,7 @@ export function Devices() {
   const rooms = useQuery({ queryKey: ['rooms'], queryFn: listRooms })
   const [shown, setShown] = useState<Shown | null>(null)
   const [adding, setAdding] = useState(false)
+  const [targetRoom, setTargetRoom] = useState('')
   const roomName = (id: string) => rooms.data?.find((r) => r.id === id)?.name ?? '—'
   const refresh = () => qc.invalidateQueries({ queryKey: ['devices'] })
 
@@ -27,7 +28,7 @@ export function Devices() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold">Thiết bị</h1>
-          <p className="mt-1 text-mute">Cảm biến và camera của từng phòng. Mỗi phòng có tối đa một thiết bị đang bật cho mỗi loại.</p>
+          <p className="mt-1 text-mute">Cảm biến và camera của từng phòng. Mỗi phòng tối đa 2 camera (H1–H2, H3–H4) và 1 cảm biến.</p>
         </div>
         {!adding && <button type="button" onClick={() => setAdding(true)} className={`${btn} bg-spore text-paper hover:bg-spore-deep`}>Thêm thiết bị</button>}
       </div>
@@ -36,7 +37,8 @@ export function Devices() {
       {adding && (
         <AddForm
           rooms={(rooms.data ?? []).filter((r) => r.status === 'ACTIVE')}
-          onCancel={() => setAdding(false)}
+          initialRoomId={targetRoom}
+          onCancel={() => { setAdding(false); setTargetRoom('') }}
           onCreated={(name, k) => { setAdding(false); setShown({ deviceName: name, apiKey: k.apiKey, how: 'tạo' }); void refresh() }}
         />
       )}
@@ -47,14 +49,22 @@ export function Devices() {
         </Notice>
       ) : !devices.data ? (
         <p className="text-mute" role="status">Đang tải...</p>
-      ) : devices.data.length === 0 ? (
-        <p className="text-mute">Chưa có thiết bị nào. Bấm "Thêm thiết bị" để tạo cảm biến hoặc camera cho một phòng.</p>
       ) : (
-        <ul className="space-y-3">
-          {devices.data.map((d) => (
-            <DeviceCard key={d.id} d={d} room={roomName(d.roomId)} onChanged={refresh} onKey={(k) => setShown({ deviceName: d.name, apiKey: k.apiKey, how: 'đổi' })} />
-          ))}
-        </ul>
+        <div className="space-y-4">
+          {(rooms.data ?? []).map((room) => {
+            const list = devices.data.filter((d) => d.roomId === room.id)
+            return <section key={room.id} className="rounded-lg border border-line bg-paper p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display text-lg font-semibold">Phòng: {room.name}</h2>
+                <button type="button" onClick={() => { setAdding(true); setTargetRoom(room.id) }} className={`${btn} border border-line`}>+ Thêm thiết bị</button>
+              </div>
+              {list.length === 0 ? <p className="text-mute">Hiện chưa có thiết bị nào.</p> :
+                <ul className="space-y-3">{list.sort((a,b) => (a.type === 'CAMERA' ? (a.cameraSlot ?? 0) : 3) - (b.type === 'CAMERA' ? (b.cameraSlot ?? 0) : 3)).map((d) =>
+                  <DeviceCard key={d.id} d={d} room={roomName(d.roomId)} onChanged={refresh} onKey={(k) => setShown({ deviceName: d.name, apiKey: k.apiKey, how: 'đổi' })} />
+                )}</ul>}
+            </section>
+          })}
+        </div>
       )}
     </div>
   )
@@ -86,17 +96,18 @@ function KeyReveal({ shown, onDone }: { shown: Shown; onDone: () => void }) {
   )
 }
 
-function AddForm({ rooms, onCancel, onCreated }: { rooms: { id: string; name: string }[]; onCancel: () => void; onCreated: (name: string, k: KeyResult) => void }) {
+function AddForm({ rooms, initialRoomId, onCancel, onCreated }: { rooms: { id: string; name: string }[]; initialRoomId: string; onCancel: () => void; onCreated: (name: string, k: KeyResult) => void }) {
   const [name, setName] = useState('')
   const [type, setType] = useState<DeviceType>('SENSOR_NODE')
-  const [roomId, setRoomId] = useState('')
+  const [roomId, setRoomId] = useState(initialRoomId)
+  const [cameraSlot, setCameraSlot] = useState<1 | 2>(1)
   const [interval, setInterval_] = useState('30')
   const [sim, setSim] = useState(false)
   const [shown, setShown] = useState(false)
   const iv = parseInterval(interval)
   const nameOk = name.trim().length > 0
   const create = useMutation({
-    mutationFn: () => createDevice({ name: name.trim(), type, roomId, intervalSec: iv!, isSimulated: sim }),
+    mutationFn: () => createDevice({ name: name.trim(), type, roomId, intervalSec: iv!, isSimulated: sim, ...(type === 'CAMERA' ? { cameraSlot } : {}) }),
     onSuccess: (k) => onCreated(name.trim(), k),
   })
   function submit(e: FormEvent) {
@@ -127,6 +138,13 @@ function AddForm({ rooms, onCancel, onCreated }: { rooms: { id: string; name: st
           </select>
           {shown && !roomId && <p id="d-room-err" className="mt-1 text-sm text-brick">Chọn phòng đặt thiết bị.</p>}
         </div>
+        {type === 'CAMERA' && <div>
+          <label htmlFor="d-slot" className="block text-sm font-medium">Vị trí camera</label>
+          <select id="d-slot" value={cameraSlot} onChange={(e) => setCameraSlot(Number(e.target.value) as 1 | 2)} className={input}>
+            <option value={1}>Camera 1 — Hàng 1–2</option>
+            <option value={2}>Camera 2 — Hàng 3–4</option>
+          </select>
+        </div>}
         <div>
           <label htmlFor="d-int" className="block text-sm font-medium">Chu kỳ gửi (giây)</label>
           <input id="d-int" inputMode="numeric" value={interval} onChange={(e) => setInterval_(e.target.value)} className={input} aria-invalid={shown && iv === null ? true : undefined} aria-describedby={shown && iv === null ? 'd-int-err' : undefined} />
@@ -153,7 +171,8 @@ function DeviceCard({ d, room, onChanged, onKey }: { d: Device; room: string; on
   const iv = parseInterval(interval)
   const patch = useMutation({ mutationFn: (b: Parameters<typeof patchDevice>[1]) => patchDevice(d.id, b), onSuccess: () => { setMode('view'); return onChanged() } })
   const rotate = useMutation({ mutationFn: () => rotateKey(d.id), onSuccess: (k) => { setMode('view'); onKey(k); return onChanged() } })
-  const active = d.status === 'ACTIVE'
+  const remove = useMutation({ mutationFn: () => deleteDevice(d.id), onSuccess: () => onChanged() })
+  const active = d.status === 'ACTIVE' 
 
   return (
     <li className="rounded-lg border border-line bg-paper p-4">
@@ -164,7 +183,7 @@ function DeviceCard({ d, room, onChanged, onKey }: { d: Device; room: string; on
             {d.isSimulated && <span className="ml-2 rounded bg-spore-soft px-1.5 py-0.5 text-xs font-normal text-spore-deep">Mô phỏng</span>}
           </h2>
           <p className="mt-0.5 text-sm text-mute">
-            {TYPE_LABEL[d.type]} · <Link to={`/giam-sat/${d.roomId}`} className="underline">{room}</Link> · gửi mỗi {d.intervalSec} giây
+            {TYPE_LABEL[d.type]}{d.type === 'CAMERA' && d.cameraSlot ? ` · Camera ${d.cameraSlot} (H${d.cameraSlot === 1 ? '1–H2' : '3–H4'})` : d.type === 'SENSOR_NODE' ? ' · Toàn phòng' : ''} · <Link to={`/giam-sat/${d.roomId}`} className="underline">{room}</Link> · gửi mỗi {d.intervalSec} giây
           </p>
         </div>
         <Status d={d} />
@@ -174,6 +193,7 @@ function DeviceCard({ d, room, onChanged, onKey }: { d: Device; room: string; on
         <div className="mt-3 flex flex-wrap gap-2">
           <button type="button" onClick={() => setMode('edit')} className={`${btn} border border-line hover:border-spore`}>Sửa</button>
           <button type="button" disabled={patch.isPending} onClick={() => patch.mutate({ status: active ? 'INACTIVE' : 'ACTIVE' })} className={`${btn} border border-line hover:border-spore`}>{active ? 'Tắt thiết bị' : 'Bật lại'}</button>
+          <button type="button" disabled={remove.isPending} onClick={() => { if (window.confirm(`Xóa thiết bị ${d.name}? Lịch sử dữ liệu vẫn được giữ.`)) remove.mutate() }} className={`${btn} border border-line text-brick`}>Xóa</button>
           <button type="button" onClick={() => setMode('rotate')} className={`${btn} border border-line hover:border-spore`}>Đổi khóa API</button>
         </div>
       )}
@@ -208,7 +228,7 @@ function DeviceCard({ d, room, onChanged, onKey }: { d: Device; room: string; on
         </div>
       )}
 
-      {(patch.isError || rotate.isError) && <div className="mt-3"><Notice tone="error">Không thực hiện được. {describeError(patch.error ?? rotate.error)}</Notice></div>}
+      {(patch.isError || rotate.isError || remove.isError) && <div className="mt-3"><Notice tone="error">Không thực hiện được. {describeError(patch.error ?? rotate.error ?? remove.error)}</Notice></div>}
     </li>
   )
 }

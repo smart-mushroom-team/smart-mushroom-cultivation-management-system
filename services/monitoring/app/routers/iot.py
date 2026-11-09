@@ -48,7 +48,7 @@ class Telemetry(BaseModel):
 
 
 def _device(c, key: str, want_type: str):
-    d = c.execute(text("SELECT id, name, room_id, type FROM devices WHERE api_key_hash=:h AND status='ACTIVE'"),
+    d = c.execute(text("SELECT id, name, room_id, type FROM devices WHERE api_key_hash=:h AND status='ACTIVE' AND deleted_at IS NULL"),
                   {"h": hashlib.sha256(key.encode()).hexdigest()}).first()
     if not d:
         raise AppError(401, "INVALID_DEVICE_KEY", "Khóa thiết bị không hợp lệ hoặc thiết bị đã tắt")

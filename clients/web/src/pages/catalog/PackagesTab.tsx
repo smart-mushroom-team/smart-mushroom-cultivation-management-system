@@ -4,6 +4,7 @@ import { listAllPackages, createPackage, patchPackage, type Pack } from '../../a
 import { describeError } from '../../api/http'
 import { Notice } from '../../components/Notice'
 import { money } from '../../lib/catalog'
+import { parseInt_, parsePrice } from '../../lib/catalog'
 import { input, primary } from './ui'
 import { useAuth } from '../../auth/AuthContext'
 import { api } from '../../api/http'
@@ -46,28 +47,32 @@ export function PackagesTab() {
   const qc = useQueryClient()
   const q = useQuery({ queryKey: ['packages-all'], queryFn: listAllPackages })
   const [showForm, setShowForm] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
   const [name, setName] = useState('')
-  const [days, setDays] = useState('60')
-  const [price, setPrice] = useState('600000')
+  const [days, setDays] = useState('')
+  const [price, setPrice] = useState('')
   const [varietyIds,setVarietyIds]=useState<string[]>([])
   const varieties=useQuery({queryKey:['varieties-package'],queryFn:()=>api<{id:string;name:string}[]>('/api/core/varieties')})
-  const duration = Number(days)
-  const amount = Number(price)
-  const valid = name.trim().length > 0 && Number.isSafeInteger(duration) && duration > 0 && Number.isSafeInteger(amount) && amount > 0
+  const duration = parseInt_(days)
+  const amount = parsePrice(price)
+  const valid = name.trim().length > 0 && duration !== null && amount !== null && Number.isSafeInteger(amount)
   const create = useMutation({
-    mutationFn: () => createPackage({ name: name.trim(), durationDays: duration, pricePerTray: amount, varietyIds }),
-    onSuccess: async () => { setShowForm(false); setName('');setVarietyIds([]); await qc.invalidateQueries({ queryKey: ['packages-all'] }) },
+    mutationFn: () => createPackage({ name: name.trim(), durationDays: duration!, pricePerTray: amount!, ...(varietyIds.length ? { varietyIds } : {}) }),
+    onSuccess: async () => { setShowForm(false); setSubmitted(false); setName(''); setDays(''); setPrice(''); setVarietyIds([]); await qc.invalidateQueries({ queryKey: ['packages-all'] }) },
   })
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-mute">Giá/ngày được tính tự động từ giá gói / số ngày. Tổng tiền đơn thuê luôn dùng giá gói.</p>{canEdit && <button type="button" className={primary} onClick={() => setShowForm(v => !v)}>{showForm ? 'Đóng' : '+ Tạo gói'}</button>}</div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-mute">Giá/ngày được tính tự động từ giá gói / số ngày. Tổng tiền đơn thuê luôn dùng giá gói.</p>{canEdit && <button type="button" className={primary} onClick={() => { setShowForm(!showForm); setSubmitted(!showForm) }}>{showForm ? 'Đóng' : 'Thêm gói'}</button>}</div>
     {canEdit && showForm && <form className="rounded-xl border border-line bg-paper p-4 space-y-3" onSubmit={e => { e.preventDefault(); if (valid) create.mutate() }}>
       <h3 className="font-display text-lg font-semibold">Tạo gói thuê mới</h3>
-      <label className="block text-sm">Tên gói<input className={`${input} mt-1 w-full`} maxLength={100} value={name} onChange={e => setName(e.target.value)} placeholder="Gói 60 ngày" required /></label>
-      <label className="block text-sm">Số ngày thuê<input className={`${input} mt-1 w-full`} type="number" min="1" step="1" value={days} onChange={e => setDays(e.target.value)} required /></label>
-      <label className="block text-sm">Giá thuê 1 khay cho cả gói (VNĐ)<input className={`${input} mt-1 w-full`} type="number" min="1" step="1" value={price} onChange={e => setPrice(e.target.value)} required /></label>
-      <p className="text-sm font-medium">Giá trung bình/ngày: {valid ? money(amount / duration) : '—'}</p>
+      <label className="block text-sm">Tên gói<input className={`${input} mt-1 w-full`} maxLength={100} value={name} onChange={e => setName(e.target.value)} placeholder="Gói 60 ngày" /></label>
+      {submitted && !name.trim() && <p className="text-sm text-brick">Nhập tên gói.</p>}
+      <label className="block text-sm">Thời hạn (ngày)<input className={`${input} mt-1 w-full`} inputMode="numeric" value={days} onChange={e => setDays(e.target.value)} /></label>
+      {submitted && duration === null && <p className="text-sm text-brick">Nhập thời hạn hợp lệ từ 1 ngày.</p>}
+      <label className="block text-sm">Giá mỗi khay (đ)<input className={`${input} mt-1 w-full`} inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} /></label>
+      {submitted && amount === null && <p className="text-sm text-brick">Nhập giá từ 0 trở lên.</p>}
+      <p className="text-sm font-medium">Giá trung bình/ngày: {valid ? money(amount! / duration!) : '—'}</p>
       <fieldset className="space-y-1"><legend className="text-sm font-medium">Giống áp dụng (không chọn = gói chung)</legend>{(varieties.data??[]).map(v=><label key={v.id} className="flex gap-2 text-sm"><input type="checkbox" checked={varietyIds.includes(v.id)} onChange={e=>setVarietyIds(ids=>e.target.checked?[...ids,v.id]:ids.filter(x=>x!==v.id))}/>{v.name}</label>)}</fieldset>
-      <button type="submit" className={primary} disabled={!valid || create.isPending}>{create.isPending ? 'Đang tạo...' : 'Tạo gói'}</button>
+      <button type="submit" className={primary} disabled={create.isPending} onClick={() => setSubmitted(true)}>{create.isPending ? 'Đang thêm...' : 'Thêm gói'}</button>
       {create.isError && <Notice tone="error">{describeError(create.error)}</Notice>}
     </form>}
     {q.isPending ? <p>Đang tải...</p> : q.isError ? <Notice tone="error">Không tải được gói thuê: {describeError(q.error)}</Notice> : q.data?.length ? <div className="grid gap-4 md:grid-cols-2">{q.data.map(pack => <PackageCard key={pack.id} pack={pack} canEdit={canEdit} varieties={varieties.data??[]} />)}</div> : <p className="text-sm text-mute">Chưa có gói thuê.</p>}

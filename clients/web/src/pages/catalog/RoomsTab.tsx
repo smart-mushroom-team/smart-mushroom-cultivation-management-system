@@ -87,7 +87,7 @@ function RoomRow({ room, total, rented, onChanged, canEdit }: { room: Room; tota
         </div>
         <div className="rounded-lg border border-line p-3">
           <p className="text-xs text-mute">Đang thuê</p>
-          <p className="mt-1 text-xl font-semibold">{rented === null ? '—' : rented}</p>
+          <p className="mt-1 text-xl font-semibold">{rented === null || total === null ? '—' : `${rented}/${total} khay đang thuê`}</p>
         </div>
         <div className="rounded-lg border border-line p-3">
           <p className="text-xs text-mute">Ô chưa có khay</p>
