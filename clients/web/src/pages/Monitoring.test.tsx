@@ -23,7 +23,21 @@ describe('danh sách giám sát', () => {
 })
 
 describe('chi tiết phòng', () => {
-  const base = { 'GET /api/core/rooms': () => json(ROOMS), 'GET /api/core/notifications': () => json([]), 'GET /api/monitoring/rooms/r1/latest': () => json({ snapshot: { temperature: 25, humidity: 80, recordedAt: now() }, deviceOnline: true }), 'GET /api/monitoring/rooms/r1/chart': () => json([{ t: now(), temp: 25, hum: 80, tempMin: 24, tempMax: 26, humMin: 79, humMax: 81, n: 5 }]), 'GET /api/monitoring/rooms/r1/camera/latest': () => apiError(404, 'NO_SNAPSHOT', 'Chưa có ảnh'), 'GET /api/monitoring/rooms/r1/camera/snapshots': () => json({ items: [], nextBefore: null, retentionHours: 24 }) }
-  it('hiện cảnh báo, biểu đồ và trạng thái chưa có ảnh', async () => { storedSession('OPERATOR'); mockApi({ ...base, 'GET /api/monitoring/rooms/r1/thresholds': () => json({ ...TH, alerting: { temp: true, hum: false } }) }); renderApp('/giam-sat/r1'); expect(await screen.findByRole('heading', { name: 'Phòng A' })).toBeInTheDocument(); expect(await screen.findByText(/Nhiệt độ đang vượt ngưỡng/)).toBeInTheDocument(); expect(await screen.findByText(/chưa có ảnh nào/)).toBeInTheDocument() })
+  const base = {
+    'GET /api/core/rooms': () => json(ROOMS),
+    'GET /api/core/notifications': () => json([]),
+    'GET /api/monitoring/rooms/r1/latest': () => json({ snapshot: { temperature: 25, humidity: 80, recordedAt: now() }, deviceOnline: true }),
+    'GET /api/monitoring/rooms/r1/chart': () => json([{ t: now(), temp: 25, hum: 80, tempMin: 24, tempMax: 26, humMin: 79, humMax: 81, n: 5 }]),
+    'GET /api/monitoring/rooms/r1/camera/latest': () => apiError(404, 'NO_SNAPSHOT', 'Chưa có ảnh'),
+    'GET /api/monitoring/rooms/r1/camera/snapshots': () => json({ items: [], page: 1, total: 0, totalPages: 0, retentionHours: 24 }),
+  }
+  it('hiện cảnh báo, biểu đồ và trạng thái chưa có ảnh', async () => {
+    storedSession('OPERATOR')
+    mockApi({ ...base, 'GET /api/monitoring/rooms/r1/thresholds': () => json({ ...TH, alerting: { temp: true, hum: false } }) })
+    renderApp('/giam-sat/r1')
+    expect(await screen.findByRole('heading', { name: 'Phòng A' })).toBeInTheDocument()
+    expect(await screen.findByText(/Nhiệt độ đang vượt ngưỡng/)).toBeInTheDocument()
+    expect(await screen.findByText('Camera 1 chưa có ảnh.')).toBeInTheDocument()
+  })
   it('đổi khoảng thời gian thì gọi biểu đồ với số giờ mới', async () => { storedSession('OPERATOR'); const m = mockApi({ ...base, 'GET /api/monitoring/rooms/r1/thresholds': () => json(TH) }); renderApp('/giam-sat/r1'); await screen.findByText('Biểu đồ'); await userEvent.setup().click(screen.getByRole('button', { name: '7 ngày' })); await waitFor(() => expect(m.calls.some((c) => c.key.includes('hours=168'))).toBe(true)) })
 })

@@ -108,52 +108,55 @@ def set_thresholds(room_id: str, b: ThresholdIn, _=Depends(require_roles("OPERAT
                   {"r": room_id, "a": b.tempMin, "b": b.tempMax, "c": b.humMin, "d": b.humMax, "n": b.consecutiveN})
     return {"ok": True}
 
-_SNAP_Q = """SELECT id, image_path, size_bytes, captured_at FROM camera_snapshots
-              WHERE room_id=:r AND (CAST(:since AS timestamptz) IS NULL OR captured_at >= :since)"""
+_SNAP_Q = """SELECT s.id, s.image_path, s.size_bytes, s.captured_at
+              FROM camera_snapshots s JOIN devices d ON d.id=s.device_id
+              WHERE s.room_id=:r AND d.room_id=:r AND d.type='CAMERA' AND d.deleted_at IS NULL
+                AND (CAST(:since AS timestamptz) IS NULL OR s.captured_at >= :since)
+                AND (CAST(:slot AS integer) IS NULL OR d.camera_slot=:slot)"""
 
 
 def _image(row) -> FileResponse:
     path = snapshots.abs_path(row.image_path)
-    if not path.exists():                                         # volume bị xóa/mất: metadata còn nhưng file không còn
+    if not path.exists():
         raise AppError(404, "NO_SNAPSHOT", "Ảnh không còn trên máy chủ")
     return FileResponse(path, media_type="image/jpeg",
                         headers={"Cache-Control": "no-store", "X-Captured-At": row.captured_at.isoformat(),
                                  "X-Snapshot-Id": str(row.id)})
 
 
-@router.get("/{room_id}/camera/latest", summary="FR-33: ảnh camera mới nhất (cùng kiểm tra quyền như số liệu, BR-08)",
-            responses={200: {"content": {"image/jpeg": {}}}})
-def camera_latest(room_id: str, user: CurrentUser = Depends(current_user)):
+@router.get("/{room_id}/camera/latest", responses={200: {"content": {"image/jpeg": {}}}})
+def camera_latest(room_id: str, cameraSlot: int | None = Query(default=None, ge=1, le=2),
+                  user: CurrentUser = Depends(current_user)):
     room_id, since = _access(room_id, user)
     with engine().connect() as c:
-        row = c.execute(text(_SNAP_Q + " ORDER BY captured_at DESC, created_at DESC LIMIT 1"), {"r": room_id, "since": since}).first()
+        row = c.execute(text(_SNAP_Q + " ORDER BY s.captured_at DESC, s.created_at DESC, s.id DESC LIMIT 1"),
+                        {"r": room_id, "since": since, "slot": cameraSlot}).first()
     if not row:
-        raise AppError(404, "NO_SNAPSHOT", "Chưa có ảnh từ camera của phòng này")
+        raise AppError(404, "NO_SNAPSHOT", "Camera chưa có ảnh")
     return _image(row)
 
 
-@router.get("/{room_id}/camera/snapshots", summary="Lịch sử ảnh (metadata), mới nhất trước; phân trang bằng `before`")
-def camera_history(room_id: str, limit: int = Query(default=48, ge=1, le=200), before: dt.datetime | None = None,
+@router.get("/{room_id}/camera/snapshots", summary="Lịch sử ảnh theo camera; phân trang 16 ảnh")
+def camera_history(room_id: str, cameraSlot: int | None = Query(default=None, ge=1, le=2),
+                   page: int = Query(default=1, ge=1), limit: int = Query(default=16, ge=1, le=100),
                    user: CurrentUser = Depends(current_user)):
     room_id, since = _access(room_id, user)
-    if before is not None and before.tzinfo is None:
-        before = before.replace(tzinfo=dt.timezone.utc)
+    params = {"r": room_id, "since": since, "slot": cameraSlot, "n": limit, "offset": (page-1)*limit}
     with engine().connect() as c:
-        rows = c.execute(text(_SNAP_Q + " AND (CAST(:before AS timestamptz) IS NULL OR captured_at < :before) "
-                                        "ORDER BY captured_at DESC, created_at DESC LIMIT :n"),
-                         {"r": room_id, "since": since, "before": before, "n": limit})
+        total = c.execute(text("SELECT count(*) FROM (" + _SNAP_Q + ") x"), params).scalar_one()
+        rows = c.execute(text(_SNAP_Q + " ORDER BY s.captured_at DESC, s.created_at DESC, s.id DESC LIMIT :n OFFSET :offset"), params)
         items = [{"id": str(r.id), "capturedAt": r.captured_at.isoformat(), "sizeBytes": r.size_bytes} for r in rows]
-    return {"items": items, "nextBefore": items[-1]["capturedAt"] if len(items) == limit else None,
+    return {"items": items, "page": page, "total": total, "totalPages": max(1, (total+limit-1)//limit),
             "retentionHours": snapshots.retention_hours()}
 
 
-@router.get("/{room_id}/camera/snapshots/{snapshot_id}", summary="Một ảnh trong lịch sử",
-            responses={200: {"content": {"image/jpeg": {}}}})
+@router.get("/{room_id}/camera/snapshots/{snapshot_id}", responses={200: {"content": {"image/jpeg": {}}}})
 def camera_snapshot(room_id: str, snapshot_id: str, user: CurrentUser = Depends(current_user)):
     room_id, since = _access(room_id, user)
     sid = snapshots.valid_uuid(snapshot_id, "Ảnh")
     with engine().connect() as c:
-        row = c.execute(text(_SNAP_Q + " AND id=:i"), {"r": room_id, "since": since, "i": sid}).first()
-    if not row:                                    # ảnh của phòng khác hoặc trước ngày thuê cũng trả 404, không lộ sự tồn tại
+        row = c.execute(text(_SNAP_Q + " AND s.id=:i"),
+                        {"r": room_id, "since": since, "slot": None, "i": sid}).first()
+    if not row:
         raise AppError(404, "NO_SNAPSHOT", "Ảnh không tồn tại")
     return _image(row)
