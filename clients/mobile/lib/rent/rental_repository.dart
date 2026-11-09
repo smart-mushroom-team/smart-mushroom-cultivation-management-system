@@ -116,10 +116,47 @@ class MyRental {
       );
 }
 
+class RentalSlot {
+  const RentalSlot({required this.id, required this.code, required this.row,
+    required this.shelf, required this.slot, required this.status});
+  final String id, code, status;
+  final int row, shelf, slot;
+  bool get available => status == 'AVAILABLE';
+  factory RentalSlot.fromJson(Map<String, dynamic> j) => RentalSlot(
+    id: j['id'] as String, code: j['code'] as String,
+    row: (j['row'] as num).toInt(), shelf: (j['shelf'] as num).toInt(),
+    slot: (j['slot'] as num).toInt(), status: j['status'] as String);
+}
+
+class RentalRoom {
+  const RentalRoom({required this.id, required this.name, required this.empty,
+    required this.rented, required this.available, required this.other, required this.trays});
+  final String id, name;
+  final int empty, rented, available, other;
+  final List<RentalSlot> trays;
+  factory RentalRoom.fromJson(Map<String, dynamic> j) => RentalRoom(
+    id: j['id'] as String, name: j['name'] as String,
+    empty: (j['empty'] as num).toInt(), rented: (j['rented'] as num).toInt(),
+    available: (j['available'] as num).toInt(), other: (j['other'] as num).toInt(),
+    trays: [for (final t in j['trays'] as List<dynamic>) RentalSlot.fromJson(t as Map<String, dynamic>)]);
+}
+
 class RentalRepository {
   RentalRepository(this._api);
 
   final ApiClient _api;
+
+  Future<List<RentalRoom>> roomsForRent() async => [
+    for (final r in (await _api.get('/api/core/rental-availability') as List<dynamic>))
+      RentalRoom.fromJson(r as Map<String, dynamic>)
+  ];
+
+  Future<RentalResult> rentSelected({required String packageId, required String roomId,
+      required List<String> trayIds, required VarietyChoice variety}) async =>
+    RentalResult.fromJson(await _api.post('/api/core/rentals', body: {
+      'packageId': packageId, 'roomId': roomId, 'trayIds': trayIds,
+      ...variety.toBody(),
+    }) as Map<String, dynamic>);
 
   Future<PackageList> packages() async => PackageList.fromJson(await _api.get('/api/core/packages') as Map<String, dynamic>);
 
