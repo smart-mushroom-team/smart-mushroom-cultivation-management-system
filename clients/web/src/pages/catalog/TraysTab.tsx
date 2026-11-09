@@ -1,203 +1,71 @@
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
-import { createTray, deleteTray, listRooms, listTrays, patchTray, type Room, type Tray } from '../../api/core'
+import { createTray, deleteTray, listRooms, listTrays, type Tray } from '../../api/core'
 import { describeError } from '../../api/http'
 import { Notice } from '../../components/Notice'
-import { parseInt_, planTrays } from '../../lib/catalog'
-import { btn, ghost, input, primary } from './ui'
+import { input, primary } from './ui'
+import { useAuth } from '../../auth/AuthContext'
+
+const positions = Array.from({ length: 32 }, (_, i) => ({ row: Math.floor(i / 8) + 1, shelf: Math.floor(i % 8 / 4) + 1, slot: i % 4 + 1 }))
+const positionKey = (row: number, shelf: number, slot: number) => `${row}-${shelf}-${slot}`
 
 export function TraysTab() {
+  const { session } = useAuth()
+  const canEdit = session?.role === 'ADMIN'
   const qc = useQueryClient()
   const rooms = useQuery({ queryKey: ['rooms'], queryFn: listRooms })
   const trays = useQuery({ queryKey: ['trays'], queryFn: listTrays })
-  const [filter, setFilter] = useState('')
-  const refresh = () => qc.invalidateQueries({ queryKey: ['trays'] })
-  const roomName = (id: string) => rooms.data?.find((r) => r.id === id)?.name ?? '—'
-  const list = (trays.data ?? []).filter((t) => !filter || t.roomId === filter)
-
-  return (
-    <div className="space-y-5">
-      <AddTrays rooms={(rooms.data ?? []).filter((r) => r.status === 'ACTIVE')} onDone={refresh} />
-
-      <label className="flex items-center gap-2 text-sm">
-        Phòng
-        <select value={filter} onChange={(e) => setFilter(e.target.value)} className="rounded-md border border-line bg-paper px-2 py-1.5 text-sm">
-          <option value="">Tất cả</option>
-          {(rooms.data ?? []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-        </select>
-      </label>
-
-      {trays.error ? (
-        <Notice tone="error" action={<button className="shrink-0 font-medium underline" onClick={() => void trays.refetch()}>Thử lại</button>}>Không tải được danh sách khay. {describeError(trays.error)}</Notice>
-      ) : !trays.data ? (
-        <p className="text-mute" role="status">Đang tải...</p>
-      ) : list.length === 0 ? (
-        <p className="text-mute">{filter ? 'Phòng này chưa có khay.' : 'Chưa có khay nào. Dùng form phía trên để thêm.'}</p>
-      ) : (
-        <ul className="space-y-2">
-          {list.map((t) => <TrayRow key={t.id} tray={t} room={roomName(t.roomId)} rooms={rooms.data ?? []} onChanged={refresh} />)}
-        </ul>
-      )}
-    </div>
-  )
-}
-
-function AddTrays({ rooms, onDone }: { rooms: Room[]; onDone: () => unknown }) {
+  const [search, setSearch] = useState('')
   const [roomId, setRoomId] = useState('')
-  const [prefix, setPrefix] = useState('')
-  const [count, setCount] = useState('1')
-  const [row, setRow] = useState('1')
-  const [shelf, setShelf] = useState('1')
-  const [slot, setSlot] = useState('1')
-  const [shown, setShown] = useState(false)
-  const [result, setResult] = useState<{ ok: number; total: number; failed?: string } | null>(null)
-  const n = parseInt_(count, 1, 50)
-  const r = parseInt_(row)
-  const s = parseInt_(shelf)
-  const sl = parseInt_(slot)
-  const valid = !!roomId && prefix.trim() !== '' && n !== null && r !== null && s !== null && sl !== null
-
-  const add = useMutation({
-    mutationFn: async () => {
-      // Tạo tuần tự để mã nào lỗi thì dừng ngay và báo đã tạo được bao nhiêu, thay vì đoán xem khay nào đã có.
-      const plan = n === 1 ? [{ trayCode: prefix.trim(), slot: sl! }] : planTrays(prefix.trim(), n!, sl!)
-      let ok = 0
-      for (const p of plan) {
-        try {
-          await createTray({ trayCode: p.trayCode, roomId, row: r!, shelf: s!, slot: p.slot })
-          ok++
-        } catch (e) {
-          setResult({ ok, total: plan.length, failed: `${p.trayCode}: ${describeError(e)}` })
-          await onDone()
-          return
-        }
-      }
-      setResult({ ok, total: plan.length })
-      await onDone()
-    },
-  })
-  function submit(e: FormEvent) {
-    e.preventDefault()
-    setShown(true)
-    setResult(null)
-    if (valid) add.mutate()
-  }
-  const err = (cond: boolean, id: string, msg: string) => (shown && cond ? <p id={id} className="mt-1 text-sm text-brick">{msg}</p> : null)
-  const inv = (cond: boolean, id: string) => ({ 'aria-invalid': shown && cond ? true : undefined, 'aria-describedby': shown && cond ? id : undefined })
-
-  return (
-    <form onSubmit={submit} noValidate className="rounded-lg border border-line bg-paper p-4">
-      <h2 className="font-display text-base font-semibold">Thêm khay</h2>
-      <p className="mt-1 text-sm text-mute">Thêm một khay, hoặc nhiều khay liền nhau trên cùng một kệ: mã sẽ là tiền tố kèm số thứ tự (A1-01, A1-02...), ô tăng dần.</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <div>
-          <label htmlFor="t-room" className="block text-sm font-medium">Phòng</label>
-          <select id="t-room" value={roomId} onChange={(e) => setRoomId(e.target.value)} className={input} {...inv(!roomId, 't-room-e')}>
-            <option value="">Chọn phòng...</option>
-            {rooms.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-          </select>
-          {err(!roomId, 't-room-e', 'Chọn phòng đặt khay.')}
-        </div>
-        <div>
-          <label htmlFor="t-prefix" className="block text-sm font-medium">Mã khay (hoặc tiền tố)</label>
-          <input id="t-prefix" value={prefix} onChange={(e) => setPrefix(e.target.value)} maxLength={40} className={input} {...inv(!prefix.trim(), 't-prefix-e')} />
-          {err(!prefix.trim(), 't-prefix-e', 'Nhập mã khay.')}
-        </div>
-        <div>
-          <label htmlFor="t-count" className="block text-sm font-medium">Số lượng</label>
-          <input id="t-count" inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} className={input} {...inv(n === null, 't-count-e')} />
-          {err(n === null, 't-count-e', 'Nhập số nguyên từ 1 đến 50.')}
-        </div>
-        <div>
-          <label htmlFor="t-row" className="block text-sm font-medium">Hàng</label>
-          <input id="t-row" inputMode="numeric" value={row} onChange={(e) => setRow(e.target.value)} className={input} {...inv(r === null, 't-row-e')} />
-          {err(r === null, 't-row-e', 'Nhập số nguyên từ 1.')}
-        </div>
-        <div>
-          <label htmlFor="t-shelf" className="block text-sm font-medium">Kệ</label>
-          <input id="t-shelf" inputMode="numeric" value={shelf} onChange={(e) => setShelf(e.target.value)} className={input} {...inv(s === null, 't-shelf-e')} />
-          {err(s === null, 't-shelf-e', 'Nhập số nguyên từ 1.')}
-        </div>
-        <div>
-          <label htmlFor="t-slot" className="block text-sm font-medium">Ô (bắt đầu từ)</label>
-          <input id="t-slot" inputMode="numeric" value={slot} onChange={(e) => setSlot(e.target.value)} className={input} {...inv(sl === null, 't-slot-e')} />
-          {err(sl === null, 't-slot-e', 'Nhập số nguyên từ 1.')}
-        </div>
-      </div>
-      <div className="mt-3"><button type="submit" disabled={add.isPending} className={primary}>{add.isPending ? 'Đang thêm...' : 'Thêm khay'}</button></div>
-      {result && !result.failed && <div className="mt-3"><Notice tone="ok">Đã thêm {result.ok} khay.</Notice></div>}
-      {result?.failed && <div className="mt-3"><Notice tone="error">Đã thêm {result.ok}/{result.total} khay, dừng ở {result.failed}</Notice></div>}
-    </form>
-  )
-}
-
-function TrayRow({ tray, room, rooms, onChanged }: { tray: Tray; room: string; rooms: Room[]; onChanged: () => unknown }) {
-  const [mode, setMode] = useState<'view' | 'edit' | 'delete'>('view')
-  const [code, setCode] = useState(tray.code)
-  const [roomId, setRoomId] = useState(tray.roomId)
-  const [row, setRow] = useState(String(tray.row))
-  const [shelf, setShelf] = useState(String(tray.shelf))
-  const [slot, setSlot] = useState(String(tray.slot))
-  const r = parseInt_(row), s = parseInt_(shelf), sl = parseInt_(slot)
-  const ok = code.trim() !== '' && r !== null && s !== null && sl !== null
-  const rented = tray.occupancy === 'RENTED'
-  const patch = useMutation({
-    mutationFn: () => patchTray(tray.id, { trayCode: code.trim(), roomId, row: r!, shelf: s!, slot: sl! }),
-    onSuccess: () => { setMode('view'); return onChanged() },
-  })
-  const del = useMutation({ mutationFn: () => deleteTray(tray.id), onSuccess: () => onChanged() })
-
-  return (
-    <li className="rounded-lg border border-line bg-paper px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <span className="font-medium">{tray.code}</span>
-          <span className="ml-2 text-sm text-mute">{room} · hàng {tray.row}, kệ {tray.shelf}, ô {tray.slot}</span>
-        </div>
-        <span className={`rounded px-2 py-0.5 text-xs font-medium ${rented ? 'bg-spore-soft text-spore-deep' : 'bg-bone text-mute'}`}>{rented ? 'Đã thuê' : 'Còn trống'}</span>
-      </div>
-      {mode === 'view' && (
-        <div className="mt-2 flex gap-2">
-          <button type="button" onClick={() => setMode('edit')} className={ghost} aria-label={`Sửa khay ${tray.code}`}>Sửa</button>
-          <button type="button" onClick={() => setMode('delete')} className={ghost} aria-label={`Xóa khay ${tray.code}`}>Xóa</button>
-        </div>
-      )}
-      {mode === 'edit' && (
-        <form noValidate onSubmit={(e) => { e.preventDefault(); if (ok) patch.mutate() }} className="mt-3 space-y-3">
-          <div className="grid gap-3 sm:grid-cols-5">
-            <div className="sm:col-span-2">
-              <label htmlFor={`c-${tray.id}`} className="block text-sm font-medium">Mã khay</label>
-              <input id={`c-${tray.id}`} value={code} onChange={(e) => setCode(e.target.value)} maxLength={50} className={input} />
-            </div>
-            <div className="sm:col-span-3">
-              <label htmlFor={`r-${tray.id}`} className="block text-sm font-medium">Phòng</label>
-              <select id={`r-${tray.id}`} value={roomId} disabled={rented} onChange={(e) => setRoomId(e.target.value)} className={input}>
-                {rooms.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-              </select>
-              {rented && <p className="mt-1 text-xs text-mute">Khay đang được thuê nên chưa chuyển phòng được.</p>}
-            </div>
-            {([['Hàng', row, setRow, r], ['Kệ', shelf, setShelf, s], ['Ô', slot, setSlot, sl]] as const).map(([l, v, set, parsed]) => (
-              <div key={l}>
-                <label htmlFor={`${l}-${tray.id}`} className="block text-sm font-medium">{l}</label>
-                <input id={`${l}-${tray.id}`} inputMode="numeric" value={v} onChange={(e) => set(e.target.value)} className={input} aria-invalid={parsed === null ? true : undefined} />
-                {parsed === null && <p className="mt-1 text-sm text-brick">Số nguyên từ 1.</p>}
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <button type="submit" disabled={patch.isPending || !ok} className={primary}>{patch.isPending ? 'Đang lưu...' : 'Lưu'}</button>
-            <button type="button" onClick={() => setMode('view')} className={`${btn} border border-line`}>Hủy</button>
-          </div>
-        </form>
-      )}
-      {mode === 'delete' && (
-        <div role="group" aria-label={`Xác nhận xóa khay ${tray.code}`} className="mt-2 flex flex-wrap items-center gap-3">
-          <span className="text-sm">Xóa khay <strong>{tray.code}</strong>? Chỉ xóa được khay chưa từng được thuê.</span>
-          <button type="button" disabled={del.isPending} onClick={() => del.mutate()} className={`${btn} bg-brick text-paper`}>{del.isPending ? 'Đang xóa...' : 'Xác nhận xóa'}</button>
-          <button type="button" onClick={() => { setMode('view'); del.reset() }} className={`${btn} border border-line`}>Hủy</button>
-        </div>
-      )}
-      {(patch.isError || del.isError) && <div className="mt-3"><Notice tone="error">Không thực hiện được. {describeError(patch.error ?? del.error)}</Notice></div>}
-    </li>
-  )
+  const [selected, setSelected] = useState<string | null>(null)
+  const [code, setCode] = useState('')
+  const [error, setError] = useState('')
+  const activeRooms = useMemo(() => (rooms.data ?? []).filter(r => (canEdit ? r.status === 'ACTIVE' : true) && r.name.toLowerCase().includes(search.toLowerCase())), [rooms.data, search])
+  useEffect(() => { if (!roomId && activeRooms.length) setRoomId(activeRooms[0].id) }, [activeRooms, roomId])
+  const current = rooms.data?.find(r => r.id === roomId)
+  const occupied = new Map<string, Tray>((trays.data ?? []).filter(t => t.roomId === roomId).map(t => [positionKey(t.row,t.shelf,t.slot),t]))
+  const place = positions.find(p => positionKey(p.row,p.shelf,p.slot) === selected)
+  const add = useMutation({ mutationFn: () => createTray({ roomId, trayCode: code.trim(), row: place!.row, shelf: place!.shelf, slot: place!.slot }), onSuccess: async () => { setCode(''); setSelected(null); setError(''); await qc.invalidateQueries({ queryKey: ['trays'] }) }, onError: e => setError(describeError(e)) })
+  const remove = useMutation({ mutationFn: (id: string) => deleteTray(id), onSuccess: async () => { setSelected(null); await qc.invalidateQueries({ queryKey: ['trays'] }) }, onError: e => setError(describeError(e)) })
+  const selectedTray = selected ? occupied.get(selected) : undefined
+  return <div className="space-y-5">
+    <div className="rounded-lg border border-line bg-paper p-4 space-y-3">
+      <h2 className="font-display text-lg font-semibold">Chọn phòng và bố trí khay</h2>
+      <label className="block text-sm font-medium" htmlFor="room-search">Tìm phòng</label>
+      <input id="room-search" className={input} value={search} onChange={e => setSearch(e.target.value)} placeholder="Nhập tên phòng..." />
+      <label className="block text-sm font-medium" htmlFor="tray-room">Phòng</label>
+      <select id="tray-room" className={input} value={activeRooms.some(r => r.id === roomId) ? roomId : ''} onChange={e => { setRoomId(e.target.value); setSelected(null); setError('') }}>
+        <option value="">Chọn phòng</option>
+        {activeRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+      </select>
+    </div>
+    {trays.isError && <Notice tone="error">Không tải được khay: {describeError(trays.error)}</Notice>}
+    {current && <div className="rounded-lg border border-line bg-paper p-4 space-y-4">
+      <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">Sơ đồ {current.name}</h3><span className="text-sm text-mute">{occupied.size}/32 vị trí đã có khay</span></div>
+      <p className="text-sm text-mute">4 hàng × 2 kệ × 4 ô. {canEdit ? 'Chọn một ô để thêm khay; ô đã có khay hiển thị mã và trạng thái.' : 'Chọn một ô để xem thông tin khay; không thể thay đổi dữ liệu.'}</p>
+      <div className="space-y-4">{[1,2,3,4].map(row => <section key={row}>
+        <h4 className="mb-2 font-semibold">Hàng {row}</h4>
+        <div className="grid gap-3 md:grid-cols-2">{[1,2].map(shelf => <div key={shelf} className="rounded-lg border border-line p-3">
+          <div className="mb-2 text-sm text-mute">Kệ {shelf}</div>
+          <div className="grid grid-cols-4 gap-2">{[1,2,3,4].map(slot => {
+            const key = positionKey(row,shelf,slot), tray = occupied.get(key)
+            return <button type="button" key={slot} onClick={() => { setSelected(key); setError('') }} aria-pressed={selected === key} aria-label={`H${row}-K${shelf}-O${slot}${tray ? `, ${tray.code}` : ', trống'}`} className={`min-h-20 rounded-md border p-2 text-xs transition-colors ${selected === key ? 'border-moss ring-2 ring-moss' : 'border-line'} ${tray ? tray.occupancy === 'RENTED' ? 'bg-amber-soft' : 'bg-moss-soft' : 'bg-bone'}`}>
+              <span className="block font-semibold">O{slot}</span><span className="mt-1 block break-all">{tray ? tray.code : 'Trống'}</span><span className="block">{tray?.occupancy === 'RENTED' ? 'Đang thuê' : tray ? 'Sẵn sàng' : ''}</span>
+            </button>
+          })}</div>
+        </div>)}</div>
+      </section>)}</div>
+    </div>}
+    {place && <div className="rounded-lg border border-line bg-paper p-4 space-y-3">
+      <h3 className="font-semibold">Vị trí H{place.row}-K{place.shelf}-O{place.slot}</h3>
+      {selectedTray ? <><p className="text-sm">Khay {selectedTray.code} — {selectedTray.occupancy === 'RENTED' ? 'Đang thuê' : 'Sẵn sàng'}</p>
+        {canEdit && <button type="button" className="rounded border border-line px-3 py-2 text-sm" disabled={selectedTray.occupancy === 'RENTED' || remove.isPending} onClick={() => { if (window.confirm(`Xóa khay ${selectedTray.code}?`)) remove.mutate(selectedTray.id) }}>Xóa khay chưa từng thuê</button>}
+      </> : canEdit ? <form onSubmit={e => { e.preventDefault(); if (code.trim()) add.mutate() }} className="flex flex-wrap items-end gap-3">
+        <div className="flex-1"><label htmlFor="new-tray-code" className="block text-sm font-medium">Mã khay</label><input id="new-tray-code" className={input} maxLength={50} value={code} onChange={e => setCode(e.target.value)} placeholder="VD: A-H1-K1-O2" /></div>
+        <button type="submit" className={primary} disabled={!code.trim() || add.isPending}>Thêm khay vào ô</button>
+      </form> : <p className="text-sm text-mute">Ô này chưa có khay.</p>}
+      {error && <Notice tone="error">{error}</Notice>}
+    </div>}
+    {!current && <p className="text-sm text-mute">Chọn một phòng đang hoạt động để xem sơ đồ.</p>}
+  </div>
 }

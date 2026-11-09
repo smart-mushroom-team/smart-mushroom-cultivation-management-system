@@ -29,8 +29,10 @@ export function App() {
           <Route path="dot-nuoi/:cycleId" element={<CycleDetail />} />
           <Route path="thiet-bi" element={<Devices />} />
           <Route path="giong-nam" element={<Varieties />} />
-          <Route element={<RequireRole roles={['ADMIN']} />}>
+          <Route element={<RequireRole roles={['ADMIN', 'OPERATOR']} />}>
             <Route path="danh-muc" element={<Catalog />} />
+          </Route>
+          <Route element={<RequireRole roles={['ADMIN']} />}>
             <Route path="nguoi-dung" element={<Users />} />
             <Route path="demo" element={<Demo />} />
           </Route>
