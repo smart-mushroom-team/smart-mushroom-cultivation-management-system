@@ -13,6 +13,9 @@ const NAV: Item[] = [
   { to: '/giong-nam', label: 'Giống nấm', ready: true },
   { to: '/thong-bao', label: 'Thông báo', ready: true, badge: true },
   { to: '/danh-muc', label: 'Phòng, khay, gói', ready: true },
+  { to: '/ban-giao-khay', label: 'Bàn giao khay', ready: true },
+  { to: '/don-thue', label: 'Đơn thuê', ready: true, adminOnly: true },
+  { to: '/chinh-sach', label: 'Chính sách', ready: true, adminOnly: true },
   { to: '/nguoi-dung', label: 'Người dùng', ready: true, adminOnly: true },
   { to: '/demo', label: 'Chế độ demo', ready: true, adminOnly: true },
 ]

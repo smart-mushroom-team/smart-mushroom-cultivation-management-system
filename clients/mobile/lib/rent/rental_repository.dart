@@ -5,18 +5,22 @@ import '../variety/variety_models.dart';
 const int maxTraysPerRental = 50;
 
 class RentalPackage {
-  const RentalPackage({required this.id, required this.name, required this.durationDays, required this.pricePerTray});
+  const RentalPackage({required this.id, required this.name, required this.durationDays, required this.pricePerTray, required this.scope, required this.varietyIds});
 
   final String id;
   final String name;
   final int durationDays;
   final num pricePerTray;
+  final String scope;
+  final List<String> varietyIds;
 
   factory RentalPackage.fromJson(Map<String, dynamic> j) => RentalPackage(
         id: j['id'] as String,
         name: j['name'] as String,
         durationDays: (j['duration_days'] as num).toInt(),
         pricePerTray: j['price_per_tray'] as num,
+        scope: j['scope'] as String? ?? 'GENERAL',
+        varietyIds: [for(final id in (j['variety_ids'] as List<dynamic>? ?? [])) id as String],
       );
 }
 
@@ -162,6 +166,13 @@ class RentalRepository {
 
   Future<RentalResult> rent({required String packageId, required int trayCount, VarietyChoice? variety}) async => RentalResult.fromJson(
       await _api.post('/api/core/rentals', body: {'packageId': packageId, 'trayCount': trayCount, ...?variety?.toBody()}) as Map<String, dynamic>);
+
+  Future<Map<String,dynamic>> requestTermination(String rentalId, {required String bankName,required String accountNumber,required String accountHolder}) async =>
+      await _api.post('/api/core/terminations/rentals/$rentalId', body:{'bankName':bankName,'accountNumber':accountNumber,'accountHolder':accountHolder}) as Map<String,dynamic>;
+
+  Future<List<Map<String,dynamic>>> myTerminations() async => [
+    for(final r in (await _api.get('/api/core/terminations/mine') as List<dynamic>)) r as Map<String,dynamic>
+  ];
 
   Future<List<MyRental>> mine() async =>
       [for (final r in (await _api.get('/api/core/rentals/mine') as List<dynamic>)) MyRental.fromJson(r as Map<String, dynamic>)];

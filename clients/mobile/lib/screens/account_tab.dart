@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../auth/auth_scope.dart';
+import 'policy_screen.dart';
 import '../core/api_client.dart';
 import '../core/config.dart';
 import '../push/push_registrar.dart';
@@ -102,6 +103,14 @@ class _AccountTabState extends State<AccountTab> {
           onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => MyRentalsScreen(auth: AuthScope.read(context)))),
           icon: const Icon(Icons.receipt_long_outlined),
           label: const Text('Đơn thuê của tôi'),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          key: const Key('policies'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48), alignment: Alignment.centerLeft),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => PolicyScreen(api: AuthScope.read(context).api))),
+          icon: const Icon(Icons.policy_outlined),
+          label: const Text('Chính sách'),
         ),
         const SizedBox(height: 24),
         const Text('Thông báo đẩy', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
