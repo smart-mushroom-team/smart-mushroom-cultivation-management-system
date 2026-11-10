@@ -136,6 +136,25 @@ def camera_latest(room_id: str, cameraSlot: int | None = Query(default=None, ge=
     return _image(row)
 
 
+@router.get("/{room_id}/camera/cycles/{cycle_id}/latest", responses={200: {"content": {"image/jpeg": {}}}},
+            summary="Mobile: ảnh camera của khay thuộc đợt nuôi đang thuê")
+def cycle_camera_latest(room_id: str, cycle_id: str, user: CurrentUser = Depends(current_user)):
+    room_id = snapshots.valid_room_id(room_id)
+    cycle_id = snapshots.valid_uuid(cycle_id, "Đợt nuôi")
+    if user.role != "CUSTOMER":
+        raise AppError(403, "CUSTOMER_ONLY", "Chỉ khách thuê được xem ảnh theo khay")
+    access = core_client.cycle_camera_access(room_id, cycle_id, user.id)
+    if not access.get("allowed") or access.get("cameraSlot") not in (1, 2):
+        raise AppError(403, "NO_ACTIVE_RENTAL", "Bạn không có quyền xem camera của khay này")
+    since = dt.datetime.combine(dt.date.fromisoformat(access["since"]), dt.time.min, tzinfo=TZ7)
+    with engine().connect() as c:
+        row = c.execute(text(_SNAP_Q + " ORDER BY s.captured_at DESC, s.created_at DESC, s.id DESC LIMIT 1"),
+                        {"r": room_id, "since": since, "slot": access["cameraSlot"]}).first()
+    if not row:
+        raise AppError(404, "NO_SNAPSHOT", "Camera chưa có ảnh")
+    return _image(row)
+
+
 @router.get("/{room_id}/camera/snapshots", summary="Lịch sử ảnh theo camera; phân trang 16 ảnh")
 def camera_history(room_id: str, cameraSlot: int | None = Query(default=None, ge=1, le=2),
                    page: int = Query(default=1, ge=1), limit: int = Query(default=16, ge=1, le=100),

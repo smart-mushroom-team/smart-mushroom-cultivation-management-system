@@ -26,3 +26,7 @@ def can_view_room(room_id: str, customer_id: str) -> bool:
 
 def room_exists(room_id: str) -> bool:
     return bool(_get(f"/rooms/{room_id}").get("active"))
+
+
+def cycle_camera_access(room_id: str, cycle_id: str, customer_id: str) -> dict:
+    return _get(f"/access/camera/cycles/{cycle_id}", roomId=room_id, customerId=customer_id)

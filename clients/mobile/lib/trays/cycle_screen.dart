@@ -15,7 +15,7 @@ import 'tray_models.dart';
 import 'tray_repository.dart';
 import 'trays_tab.dart' show StageBar;
 
-/// Chi tiết một khay: tiến độ, nhật ký, số đo hiện tại, biểu đồ 24 giờ và ảnh camera mới nhất của phòng.
+/// Chi tiết một khay: tiến độ, nhật ký, số đo hiện tại, biểu đồ 24 giờ và ảnh camera đúng khu vực khay đang thuê.
 /// Màn này nằm trên Navigator nên nhận [auth] trực tiếp (không đứng dưới AuthScope của HomeShell chắc chắn).
 class CycleScreen extends StatefulWidget {
   const CycleScreen(
@@ -77,8 +77,10 @@ class _CycleScreenState extends State<CycleScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         RoomReadingView(data: data, error: error),
-        if (a != null && range != null)
+        if (a != null && range != null) ...[
           ConditionTiles(assessment: a, reading: data?.reading, range: range),
+          EnvironmentNotice(assessment: a),
+        ],
         if (c != null && range == null && c.varietyStatus != 'NONE')
           const Padding(
             padding: EdgeInsets.only(top: 8),
@@ -153,7 +155,7 @@ class _CycleScreenState extends State<CycleScreen> {
 
   Future<void> _loadImage() async {
     try {
-      final i = await _repo.cameraLatest(widget.roomId);
+      final i = await _repo.cameraForCycle(widget.roomId, widget.cycleId);
       if (mounted) {
         setState(() {
           _image = i;
@@ -271,7 +273,7 @@ class _CycleScreenState extends State<CycleScreen> {
             width: double.infinity,
             fit: BoxFit.cover,
             gaplessPlayback: true,
-            semanticLabel: 'Ảnh mới nhất từ camera phòng ${widget.roomName}',
+            semanticLabel: 'Ảnh camera khu vực khay ${widget.trayCode}',
             errorBuilder: (_, __, ___) => const Padding(
                 padding: EdgeInsets.all(16),
                 child: Text('Không hiển thị được ảnh này.')),
