@@ -8,3 +8,6 @@ export const listUsers = async () =>
   (await api<Dto[]>('/api/identity/users')).map((u): AppUser => ({ id: u.id, name: u.name, email: u.email, role: u.role, status: u.status, createdAt: u.created_at }))
 export const createOperator = (b: { name: string; email: string; password: string }) => api<{ id: string }>('/api/identity/users/operators', { method: 'POST', body: b })
 export const setUserActive = (id: string, active: boolean) => api<{ id: string; status: string }>(`/api/identity/users/${id}/${active ? 'activate' : 'deactivate'}`, { method: 'POST' })
+
+export const createAdmin = (b: { name: string; email: string; password: string }) => api<{ id: string }>('/api/identity/users/admins', { method: 'POST', body: b })
+export const resetUserPassword = (id: string, password: string) => api<{ ok: boolean }>(`/api/identity/users/${id}/reset-password`, { method: 'POST', body: { password } })

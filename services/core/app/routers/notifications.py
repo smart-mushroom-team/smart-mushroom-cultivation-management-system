@@ -1,7 +1,7 @@
 """FR-42, FR-43: thông báo trong ứng dụng + đăng ký FCM token."""
 from typing import Literal
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 
@@ -28,6 +28,33 @@ def list_mine(user: CurrentUser = Depends(current_user)):
             WHERE n.recipient_user_id=:u OR (:staff AND n.recipient_role='STAFF')
             ORDER BY n.created_at DESC LIMIT 100"""), {"u": user.id, "staff": staff})
         return [dict(r._mapping, id=str(r.id)) for r in rows]
+
+
+@router.get("/page", summary="Thông báo có lọc loại và phân trang (mới nhất trước)")
+def list_mine_page(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    type: str | None = Query(None),
+    user: CurrentUser = Depends(current_user),
+):
+    allowed = {"NEW_RENTAL", "DEVICE_OFFLINE", "VARIETY_PENDING", "DEVICE_ONLINE"}
+    from common.errors import AppError
+    if type and type not in allowed:
+        raise AppError(422, "INVALID_TYPE", "Loại thông báo không hợp lệ")
+    staff = user.role in ("ADMIN", "OPERATOR")
+    params = {"u": user.id, "staff": staff, "type": type, "limit": limit, "offset": (page - 1) * limit}
+    where = "(n.recipient_user_id=:u OR (:staff AND n.recipient_role='STAFF')) AND (CAST(:type AS text) IS NULL OR n.type=:type)"
+    with engine().connect() as c:
+        total = c.execute(text(f"SELECT count(*) FROM notifications n WHERE {where}"), params).scalar_one()
+        rows = c.execute(text(f"""
+            SELECT n.id, n.type, n.title, n.content, n.data, n.created_at,
+                   (nr.user_id IS NOT NULL) AS read
+            FROM notifications n LEFT JOIN notification_reads nr
+              ON nr.notification_id=n.id AND nr.user_id=:u
+            WHERE {where}
+            ORDER BY n.created_at DESC, n.id DESC
+            LIMIT :limit OFFSET :offset"""), params).mappings().all()
+    return {"items": [dict(r, id=str(r["id"])) for r in rows], "total": total, "page": page, "limit": limit}
 
 
 @router.post("/{nid}/read")

@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { listRooms } from '../api/core'
 import { describeError } from '../api/http'
-import { listNotifications, markRead, type AppNotification } from '../api/notifications'
+import { listNotifications, listNotificationPage, markRead, type AppNotification, type NotificationFilter } from '../api/notifications'
 import { Notice } from '../components/Notice'
 import { clock, timeAgo } from '../lib/format'
 
@@ -24,14 +25,17 @@ export function useNotifications(poll = false) {
 
 export function Notifications() {
   const qc = useQueryClient()
-  const q = useNotifications()
+  const [filter, setFilter] = useState<NotificationFilter>('')
+  const [page, setPage] = useState(1)
+  const q = useQuery({ queryKey: ['notifications', 'page', page, filter], queryFn: () => listNotificationPage(page, filter) })
   const rooms = useQuery({ queryKey: ['rooms'], queryFn: listRooms })
   const read = useMutation({ mutationFn: markRead, onSuccess: () => qc.invalidateQueries({ queryKey: unreadKey }) })
   const all = useMutation({
     mutationFn: async (ids: string[]) => { await Promise.all(ids.map(markRead)) },
     onSettled: () => qc.invalidateQueries({ queryKey: unreadKey }),
   })
-  const items = q.data ?? []
+  const items = q.data?.items ?? []
+  const pageCount = Math.max(1, Math.ceil((q.data?.total ?? 0) / 10))
   const unread = items.filter((n) => !n.read)
   const roomName = (n: AppNotification) => rooms.data?.find((r) => r.id === n.data?.roomId)
 
@@ -40,13 +44,20 @@ export function Notifications() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold">Thông báo</h1>
-          <p className="mt-1 text-mute">{unread.length ? `${unread.length} chưa đọc` : 'Không có thông báo chưa đọc'}</p>
+          <p className="mt-1 text-mute">{unread.length ? `${unread.length} chưa đọc trên trang này` : 'Không có thông báo chưa đọc trên trang này'}</p>
         </div>
         {unread.length > 0 && (
           <button type="button" disabled={all.isPending} onClick={() => all.mutate(unread.map((n) => n.id))} className="rounded-md border border-line px-3 py-1.5 text-sm font-medium hover:border-spore">
-            Đánh dấu tất cả đã đọc
+            Đánh dấu trang này đã đọc
           </button>
         )}
+      </div>
+      <div className="mt-5">
+        <label className="flex items-center gap-2 text-sm">Loại thông báo
+          <select value={filter} onChange={(e) => { setFilter(e.target.value as NotificationFilter); setPage(1) }} className="rounded-md border border-line bg-paper px-2 py-1.5">
+            <option value="">Tất cả</option><option value="NEW_RENTAL">Thuê mới</option><option value="DEVICE_OFFLINE">Mất kết nối</option><option value="VARIETY_PENDING">Giống chờ duyệt</option><option value="DEVICE_ONLINE">Kết nối lại</option>
+          </select>
+        </label>
       </div>
       <div className="mt-6">
         {q.error ? (
@@ -91,6 +102,10 @@ export function Notifications() {
           </ul>
         )}
       </div>
+      {!!q.data && <nav aria-label="Phân trang thông báo" className="mt-4 flex items-center justify-between gap-3 text-sm">
+        <span>Trang {page}/{pageCount} · {q.data.total} thông báo</span>
+        <div className="flex gap-2"><button type="button" className="rounded border border-line px-3 py-1" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Trước</button><button type="button" className="rounded border border-line px-3 py-1" disabled={page >= pageCount} onClick={() => setPage((p) => p + 1)}>Sau</button></div>
+      </nav>}
     </div>
   )
 }
