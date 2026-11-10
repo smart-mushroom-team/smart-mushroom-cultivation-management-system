@@ -59,6 +59,12 @@ class TrayRepository {
     return [for (final p in raw) ChartPoint.fromJson(p as Map<String, dynamic>)];
   }
 
+  /// Ảnh camera theo đợt nuôi/khay, backend xác định slot và xác thực quyền thuê.
+  Future<CameraImage> cameraForCycle(String roomId, String cycleId) async {
+    final r = await _api.getBytes('/api/monitoring/rooms/$roomId/camera/cycles/$cycleId/latest');
+    return CameraImage(bytes: Uint8List.fromList(r.bytes), capturedAt: r.capturedAt);
+  }
+
   /// Ảnh camera mới nhất; ném ApiException NO_SNAPSHOT (404) nếu chưa có ảnh.
   Future<CameraImage> cameraLatest(String roomId) async {
     final r = await _api.getBytes('/api/monitoring/rooms/$roomId/camera/latest');

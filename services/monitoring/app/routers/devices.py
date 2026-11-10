@@ -7,6 +7,9 @@ Quy tắc:
 """
 import datetime as dt
 import hashlib
+import logging
+
+from .. import snapshots
 import secrets
 import uuid
 
@@ -20,6 +23,8 @@ from common.errors import AppError
 from common.security import require_roles
 
 from .. import core_client
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/devices", tags=["devices"], dependencies=[Depends(require_roles("OPERATOR"))])
 OFFLINE_FACTOR = 3          # offline = 3 x chu kỳ gửi (BR-11)
@@ -124,13 +129,33 @@ def rotate_key(device_id: str):
     return {"id": device_id, "apiKey": key, "note": "Lưu khóa này ngay, hệ thống không hiển thị lại"}
 
 
-@router.delete("/{device_id}", summary="Xóa mềm thiết bị, giữ lịch sử đo và ảnh")
-def delete_device(device_id: str):
+@router.delete("/{device_id}", summary="Xóa vĩnh viễn thiết bị và dữ liệu liên quan (ADMIN)")
+def delete_device(device_id: str, _=Depends(require_roles("ADMIN"))):
     device_id = _uuid(device_id)
-    _, invalid_hash = _new_key()
+    paths = []
     with engine().begin() as c:
-        n = c.execute(text("""UPDATE devices SET status='INACTIVE', deleted_at=now(), api_key_hash=:h
-                              WHERE id=:d AND deleted_at IS NULL"""), {"d": device_id, "h": invalid_hash}).rowcount
-    if not n:
-        raise AppError(404, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại")
-    return {"deleted": True}
+        row = c.execute(text("SELECT id, type, room_id FROM devices WHERE id=:d FOR UPDATE"), {"d": device_id}).first()
+        if not row:
+            raise AppError(404, "DEVICE_NOT_FOUND", "Thiết bị không tồn tại")
+        if row.type == "CAMERA":
+            paths = [r[0] for r in c.execute(text(
+                "DELETE FROM camera_snapshots WHERE device_id=:d RETURNING image_path"), {"d": device_id})]
+        else:
+            c.execute(text("DELETE FROM sensor_readings WHERE device_id=:d"), {"d": device_id})
+            # Aggregate là dữ liệu THEO PHÒNG, không có device_id. Vì mỗi phòng chỉ có một sensor,
+            # xóa aggregate nếu không còn sensor khác (kể cả soft-deleted) trong phòng.
+            remaining = c.execute(text("SELECT 1 FROM devices WHERE room_id=:r AND type='SENSOR_NODE' AND id<>:d LIMIT 1"),
+                                  {"r": row.room_id, "d": device_id}).first()
+            if not remaining:
+                c.execute(text("DELETE FROM sensor_aggregates WHERE room_id=:r"), {"r": row.room_id})
+                c.execute(text("DELETE FROM room_thresholds WHERE room_id=:r"), {"r": row.room_id})
+        c.execute(text("DELETE FROM devices WHERE id=:d"), {"d": device_id})
+    # File system không cùng transaction với PostgreSQL: file xóa lỗi sẽ được purge_old dọn như orphan.
+    failed = 0
+    for rel in paths:
+        try:
+            snapshots.abs_path(rel).unlink(missing_ok=True)
+        except OSError:
+            failed += 1
+            log.exception("Không xóa được ảnh %s; sẽ được dọn bởi purge_old", rel)
+    return {"deleted": True, "imagesDeleted": len(paths) - failed, "filesPendingCleanup": failed}

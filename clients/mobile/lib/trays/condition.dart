@@ -146,6 +146,81 @@ class AssessmentChip extends StatelessWidget {
   }
 }
 
+/// Thông báo tại chỗ cho khách thuê, không gửi push và không tạo luồng hỗ trợ.
+/// Chỉ cảnh báo khi có số đo mới, thiết bị online và thông số vượt ngưỡng.
+class EnvironmentNotice extends StatelessWidget {
+  const EnvironmentNotice({super.key, required this.assessment});
+
+  final Assessment assessment;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!assessment.available) {
+      return _notice(
+        keyName: 'environment-unavailable',
+        icon: Icons.info_outline,
+        foreground: AppColors.mute,
+        background: AppColors.bone,
+        title: 'Chưa thể đánh giá môi trường',
+        message: assessment.unavailable ?? 'Chưa có dữ liệu cảm biến đáng tin cậy.',
+      );
+    }
+
+    final problems = <String>[
+      if (assessment.temp != null && assessment.temp!.level != Level.ok)
+        'Nhiệt độ ${assessment.temp!.label.toLowerCase()}',
+      if (assessment.hum != null && assessment.hum!.level != Level.ok)
+        'Độ ẩm ${assessment.hum!.label.toLowerCase()}',
+    ];
+    if (problems.isEmpty) {
+      // Không thêm banner khi hai thông số đều bình thường;
+      // ConditionTiles đã hiển thị trạng thái phù hợp.
+      return const SizedBox.shrink();
+    }
+    final severe = assessment.level == Level.danger;
+    return _notice(
+      keyName: 'environment-warning',
+      icon: severe ? Icons.error_outline : Icons.warning_amber_rounded,
+      foreground: severe ? AppColors.brick : AppColors.amber,
+      background: severe ? AppColors.brickSoft : AppColors.amberSoft,
+      title: 'Điều kiện môi trường chưa phù hợp',
+      message: '${problems.join('; ')} so với ngưỡng của giống nấm. '
+          'Vui lòng liên hệ hotline hỗ trợ nếu tình trạng kéo dài.',
+    );
+  }
+
+  Widget _notice({
+    required String keyName,
+    required IconData icon,
+    required Color foreground,
+    required Color background,
+    required String title,
+    required String message,
+  }) => Container(
+        key: Key(keyName),
+        width: double.infinity,
+        margin: const EdgeInsets.only(top: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, color: foreground),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(title,
+                  style: TextStyle(
+                      color: foreground, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(message, style: TextStyle(color: foreground, fontSize: 13)),
+            ]),
+          ),
+        ]),
+      );
+}
+
 /// Hai ô "Nhiệt độ" và "Độ ẩm" ở chi tiết khay: giá trị, nhãn đánh giá và khoảng phù hợp.
 class ConditionTiles extends StatelessWidget {
   const ConditionTiles(
