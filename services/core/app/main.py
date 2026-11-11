@@ -12,6 +12,7 @@ from common.migrate import run_migrations
 from . import clock, consumer, lifecycle, notify
 from .routers import (
     cycles,
+    dashboard,
     demo,
     internal,
     notifications,
@@ -68,5 +69,6 @@ for r in (
     varieties.router,
     termination.router,  # NEW: Kết thúc thuê sớm / hoàn tiền
     policies.router,     # NEW: Quản lý chính sách
+    dashboard.router,    # Tổng quan
 ):
     app.include_router(r)

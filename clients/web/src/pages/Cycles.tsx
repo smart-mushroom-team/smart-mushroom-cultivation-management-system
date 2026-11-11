@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { listRooms } from '../api/core'
 import { listCycles, type CycleStatus } from '../api/cycles'
 import { describeError } from '../api/http'
@@ -12,7 +12,9 @@ const TABS: CycleStatus[] = ['GROWING', 'HARVESTED', 'DISCARDED']
 export function Cycles() {
   const [status, setStatus] = useState<CycleStatus>('GROWING')
   const [roomId, setRoomId] = useState('')
-  const [pendingOnly, setPendingOnly] = useState(false)
+  // Tổng quan dẫn tới đây bằng ?giong=cho-duyet để mở sẵn bộ lọc giống chờ duyệt.
+  const [params] = useSearchParams()
+  const [pendingOnly, setPendingOnly] = useState(params.get('giong') === 'cho-duyet')
   const rooms = useQuery({ queryKey: ['rooms'], queryFn: listRooms })
   const q = useQuery({ queryKey: ['cycles', status, roomId, pendingOnly], queryFn: () => listCycles(status, roomId, pendingOnly ? 'PENDING' : undefined) })
   const roomName = (id: string) => rooms.data?.find((r) => r.id === id)?.name ?? '—'
