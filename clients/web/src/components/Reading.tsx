@@ -2,14 +2,14 @@ import { LEVEL_TEXT, level, num } from '../lib/format'
 
 const TONE = { ok: 'text-ink', low: 'text-water', high: 'text-brick', unknown: 'text-mute' } as const
 
-/** Một số đo kèm chữ giải thích mức (không chỉ dựa vào màu) so với ngưỡng. */
-export function Reading({ label, value, unit, min, max, big }: { label: string; value: number | null | undefined; unit: string; min: number; max: number; big?: boolean }) {
-  const lv = level(value, min, max)
+/** Một số đo kèm chữ giải thích mức (không chỉ dựa vào màu) so với ngưỡng. noLevel: số đo chưa có ngưỡng (độ ẩm đất) thì chỉ hiện con số. */
+export function Reading({ label, value, unit, min, max, big, noLevel }: { label: string; value: number | null | undefined; unit: string; min: number; max: number; big?: boolean; noLevel?: boolean }) {
+  const lv = noLevel ? (value === null || value === undefined ? 'unknown' : 'ok') : level(value, min, max)
   return (
     <div>
       <div className="text-sm text-mute">{label}</div>
       <div className={`font-display font-semibold ${big ? 'text-4xl' : 'text-xl'} ${TONE[lv]}`}>{num(value, unit)}</div>
-      {lv !== 'unknown' && lv !== 'ok' ? <div className={`text-xs font-medium ${TONE[lv]}`}>{LEVEL_TEXT[lv]}</div> : lv === 'ok' ? <div className="text-xs text-moss">{LEVEL_TEXT.ok}</div> : null}
+      {noLevel ? null : lv !== 'unknown' && lv !== 'ok' ? <div className={`text-xs font-medium ${TONE[lv]}`}>{LEVEL_TEXT[lv]}</div> : lv === 'ok' ? <div className="text-xs text-moss">{LEVEL_TEXT.ok}</div> : null}
     </div>
   )
 }

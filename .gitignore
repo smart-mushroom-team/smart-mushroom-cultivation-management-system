@@ -17,3 +17,8 @@ devices/esp32-firmware/include/config.h
 devices/camera-agent/config.yaml
 infra/nifi/exports/*.local.json
 help.txt
+**/esp32-firmware/include/config.h
+
+# PlatformIO build
+.pio/
+devices/esp32-firmware/.vscode/

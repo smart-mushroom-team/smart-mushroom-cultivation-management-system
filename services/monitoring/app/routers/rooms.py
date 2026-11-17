@@ -41,10 +41,11 @@ def latest(room_id: str, user: CurrentUser = Depends(current_user)):
     snap = cache.get_snapshot(room_id)
     if snap is None:                                    # Redis trống: lấy từ DB
         with engine().connect() as c:
-            r = c.execute(text("SELECT temperature,humidity,recorded_at FROM sensor_readings WHERE room_id=:r "
+            r = c.execute(text("SELECT temperature,humidity,soil_moisture,recorded_at FROM sensor_readings WHERE room_id=:r "
                                "ORDER BY recorded_at DESC LIMIT 1"), {"r": room_id}).first()
         snap = {"temperature": None if r.temperature is None else float(r.temperature),
                 "humidity": None if r.humidity is None else float(r.humidity),
+                "soilMoisture": None if r.soil_moisture is None else float(r.soil_moisture),
                 "recordedAt": r.recorded_at.isoformat()} if r else None
     with engine().connect() as c:
         d = c.execute(text("SELECT last_seen_at, interval_sec FROM devices WHERE room_id=:r AND type='SENSOR_NODE' AND status='ACTIVE'"),
