@@ -1,6 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Bắt buộc cho bản release: thiếu dòng này APK không gọi được server nào -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+ mới cho hiện thông báo đẩy -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- usesCleartextTraffic: server đang chạy HTTP thường (chưa có HTTPS); bỏ khi triển khai HTTPS -->
     <application
-        android:label="mushroom_mobile"
+        android:label="Trại nấm"
+        android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
