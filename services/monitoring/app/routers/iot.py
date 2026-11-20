@@ -23,9 +23,10 @@ MAX_AGE = dt.timedelta(days=7)             # cũ hơn thời hạn giữ dữ li
 class Telemetry(BaseModel):
     temperature: float | None = Field(default=None, ge=-40, le=85)     # dải đo của DHT22; ngoài dải coi là lỗi cảm biến
     humidity: float | None = Field(default=None, ge=0, le=100)
+    soilMoisture: float | None = Field(default=None, ge=0, le=100)     # độ ẩm đất (phần trăm), tùy chọn
     recordedAt: dt.datetime | None = None
 
-    @field_validator("temperature", "humidity")
+    @field_validator("temperature", "humidity", "soilMoisture")
     @classmethod
     def _finite(cls, v):
         if v is not None and not math.isfinite(v):
@@ -62,8 +63,9 @@ def telemetry(body: Telemetry, x_device_key: str = Header(default="")):
     ts = body.recordedAt or dt.datetime.now(dt.timezone.utc)
     with engine().begin() as c:
         d = _device(c, x_device_key, "SENSOR_NODE")
-        c.execute(text("INSERT INTO sensor_readings(device_id,room_id,temperature,humidity,recorded_at) VALUES (:d,:r,:t,:h,:ts)"),
-                  {"d": d.id, "r": d.room_id, "t": body.temperature, "h": body.humidity, "ts": ts})
+        c.execute(text("INSERT INTO sensor_readings(device_id,room_id,temperature,humidity,soil_moisture,recorded_at) "
+                       "VALUES (:d,:r,:t,:h,:s,:ts)"),
+                  {"d": d.id, "r": d.room_id, "t": body.temperature, "h": body.humidity, "s": body.soilMoisture, "ts": ts})
         was_offline = presence.mark_seen(c, d.id)
         events = thresholds.evaluate(c, str(d.room_id), str(d.id), body.temperature, body.humidity, ts)
     room = str(d.room_id)                       # từ đây giao dịch đã commit: mới gửi cảnh báo, không giữ khóa DB khi RabbitMQ chậm
@@ -72,7 +74,8 @@ def telemetry(body: Telemetry, x_device_key: str = Header(default="")):
         presence.announce_online(d)
     prev = cache.get_snapshot(room)
     if not prev or prev.get("recordedAt", "") <= ts.isoformat():      # gói đến trễ không được ghi đè số liệu mới hơn
-        cache.set_snapshot(room, {"temperature": body.temperature, "humidity": body.humidity, "recordedAt": ts.isoformat()})
+        cache.set_snapshot(room, {"temperature": body.temperature, "humidity": body.humidity,
+                                   "soilMoisture": body.soilMoisture, "recordedAt": ts.isoformat()})
     cache.touch(str(d.id), ts.isoformat())
     # NiFi gom 5 phút/bản ghi (BR-14). Gửi lỗi thì chỉ log, không làm hỏng việc nhận dữ liệu.
     publish(TELEMETRY_QUEUE, {"roomId": room, "deviceId": str(d.id), "temperature": body.temperature,

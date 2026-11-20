@@ -1,6 +1,6 @@
 import { api, apiBlob } from './http'
 
-export type Snapshot = { temperature: number | null; humidity: number | null; recordedAt: string }
+export type Snapshot = { temperature: number | null; humidity: number | null; soilMoisture?: number | null; recordedAt: string }
 export type Latest = { snapshot: Snapshot | null; deviceOnline: boolean }
 
 /** Một cửa sổ 5 phút do NiFi gộp: giá trị trung bình, nhỏ nhất, lớn nhất và số lần đo (n). */
