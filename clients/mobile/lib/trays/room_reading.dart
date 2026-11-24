@@ -62,11 +62,16 @@ class RoomReading extends StatelessWidget {
 
 class RoomReadingView extends StatelessWidget {
   const RoomReadingView(
-      {super.key, required this.data, required this.error, this.now});
+      {super.key,
+      required this.data,
+      required this.error,
+      this.now,
+      this.values});
 
   final LatestReading? data;
   final Object? error;
   final DateTime? now;
+  final Widget? values;
 
   @override
   Widget build(BuildContext context) {
@@ -89,22 +94,23 @@ class RoomReadingView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          const Icon(Icons.thermostat, size: 20, color: AppColors.spore),
-          const SizedBox(width: 4),
-          Text(formatTemp(r.temperature),
-              key: const Key('reading-temp'),
-              style:
-                  const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-          const SizedBox(width: 20),
-          const Icon(Icons.water_drop_outlined,
-              size: 20, color: AppColors.spore),
-          const SizedBox(width: 4),
-          Text(formatHumidity(r.humidity),
-              key: const Key('reading-hum'),
-              style:
-                  const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-        ]),
+        values ??
+            Row(children: [
+              const Icon(Icons.thermostat, size: 20, color: AppColors.spore),
+              const SizedBox(width: 4),
+              Text(formatTemp(r.temperature),
+                  key: const Key('reading-temp'),
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w600)),
+              const SizedBox(width: 20),
+              const Icon(Icons.water_drop_outlined,
+                  size: 20, color: AppColors.spore),
+              const SizedBox(width: 4),
+              Text(formatHumidity(r.humidity),
+                  key: const Key('reading-hum'),
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w600)),
+            ]),
         const SizedBox(height: 2),
         Text(
           d.deviceOnline

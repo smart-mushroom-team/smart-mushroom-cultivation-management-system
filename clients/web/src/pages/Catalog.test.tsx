@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { apiError, json, mockApi, renderApp, storedSession } from '../test/helpers'
@@ -41,6 +41,34 @@ describe('phòng', () => {
 })
 
 describe('khay', () => {
+  it('nhóm khay theo hàng của phòng đang chọn, hiển thị vị trí và trạng thái', async () => {
+    storedSession('ADMIN')
+    mockApi({
+      ...base,
+      'GET /api/core/rooms': () => json([...ROOMS, { id: 'r3', name: 'Phòng B', status: 'ACTIVE' }]),
+      'GET /api/core/trays': () => json([
+        tray('t1', 'A-01', 'RENTED'),
+        { ...tray('t2', 'A-02'), location_row: 2, location_slot: 4 },
+        tray('t3', 'B-01', 'AVAILABLE', 'r3'),
+      ]),
+    })
+    renderApp('/danh-muc')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Khay' }))
+
+    const list = within(await screen.findByRole('region', { name: 'Danh sách khay' }))
+    const firstRow = within(list.getByRole('region', { name: 'Hàng 1' }))
+    expect(firstRow.getByRole('listitem')).toHaveTextContent(/A-01.*H1-K2-O3.*Đang được thuê/)
+    expect(list.getByRole('region', { name: 'Hàng 2' })).toHaveTextContent(/A-02.*H2-K2-O4.*Sẵn sàng/)
+    expect(list.getByRole('region', { name: 'Hàng 4' })).toHaveTextContent('Hàng này chưa có khay.')
+    expect(list.queryByText('Phòng A')).not.toBeInTheDocument()
+    expect(list.queryByText('B-01')).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Phòng', { selector: '#tray-room' }), 'r3')
+    expect(list.getByRole('region', { name: 'Hàng 1' })).toHaveTextContent('B-01')
+    expect(list.queryByText('A-01')).not.toBeInTheDocument()
+  })
+
   it('thêm hàng loạt: sinh mã, ô tăng dần; lỗi ở khay giữa chừng thì dừng và báo đã tạo bao nhiêu', async () => {
     storedSession('ADMIN')
     let n = 0

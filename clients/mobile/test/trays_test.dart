@@ -80,12 +80,13 @@ Future<http.Response> base(http.Request r, {List<Map<String, dynamic>>? trays, M
         ],
       });
     case '/api/monitoring/rooms/room1/chart':
+      expect(r.url.queryParameters['includeSoil'], 'true');
       return jsonResponse([
-        {'t': '2026-10-31T08:00:00+00:00', 'temp': 26.0, 'hum': 85.0, 'n': 10},
+        {'t': '2026-10-31T08:00:00+00:00', 'temp': 26.0, 'hum': 85.0, 'soil': 0, 'n': 10},
         {'t': '2026-10-31T08:05:00+00:00', 'temp': null, 'hum': 86.0, 'n': 5},
         {'t': '2026-10-31T08:10:00+00:00', 'temp': 28.0, 'hum': 90.0, 'n': 10},
       ]);
-    case '/api/monitoring/rooms/room1/camera/latest':
+    case '/api/monitoring/rooms/room1/camera/cycles/c1/latest':
       return http.Response.bytes(pngBytes, 200, headers: {'content-type': 'image/png', 'x-captured-at': '2026-10-31T03:20:00+00:00'});
   }
   return errorResponse(404, 'NOT_FOUND', 'Không có');
@@ -181,12 +182,28 @@ void main() {
   });
 
   testWidgets('mở chi tiết khay: tiến độ, nhật ký, biểu đồ và ảnh camera', (tester) async {
-    await open(tester, base);
+    await open(tester, (r) => base(r, latest: {
+      ...latestOk,
+      'snapshot': {...(latestOk['snapshot'] as Map<String, dynamic>), 'soilMoisture': 72},
+    }));
     await tester.tap(find.byKey(const Key('tray-c1')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('cycle-stage')), findsOneWidget);
-    expect(find.text('Nhiệt độ'), findsOneWidget);
-    expect(find.text('Độ ẩm'), findsOneWidget);
+    expect(find.byKey(const Key('chart-temperature')), findsOneWidget);
+    expect(find.byKey(const Key('chart-humidity')), findsNothing);
+    final humidity = find.byKey(const Key('metric-humidity'));
+    await tester.ensureVisible(humidity);
+    await tester.tap(humidity);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('chart-humidity')), findsOneWidget);
+    expect(find.byKey(const Key('chart-temperature')), findsNothing);
+    final soil = find.byKey(const Key('metric-soil'));
+    expect(find.descendant(of: soil, matching: find.text('72 %')), findsOneWidget);
+    await tester.tap(soil);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('chart-soil')), findsOneWidget);
+    expect(find.textContaining('chỉ mang giá trị xấp xỉ'), findsOneWidget);
+    await tester.scrollUntilVisible(find.byKey(const Key('camera-image')), 150, scrollable: find.byType(Scrollable).last);
     expect(find.byKey(const Key('camera-image')), findsOneWidget);
     expect(find.text('Chụp lúc 10:20 31/10/2026'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Nhật ký tiến độ'), 300, scrollable: find.byType(Scrollable).last);
@@ -196,7 +213,7 @@ void main() {
 
   testWidgets('chi tiết: camera chưa có ảnh và biểu đồ trống không làm hỏng màn hình', (tester) async {
     await open(tester, (r) async {
-      if (r.url.path.endsWith('/camera/latest')) return errorResponse(404, 'NO_SNAPSHOT', 'Chưa có ảnh từ camera của phòng này');
+      if (r.url.path.endsWith('/camera/cycles/c1/latest')) return errorResponse(404, 'NO_SNAPSHOT', 'Chưa có ảnh từ camera của phòng này');
       if (r.url.path.endsWith('/chart')) return jsonResponse([]);
       return base(r);
     });

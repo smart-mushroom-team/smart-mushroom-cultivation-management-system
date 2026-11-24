@@ -55,19 +55,52 @@ def latest(room_id: str, user: CurrentUser = Depends(current_user)):
     return {"snapshot": snap, "deviceOnline": online}
 
 
-@router.get("/{room_id}/chart", summary="FR-35: biểu đồ từ bảng tổng hợp 5 phút do NiFi ghi")
-def chart(room_id: str, hours: int = 24, user: CurrentUser = Depends(current_user)):
+@router.get("/{room_id}/chart", summary="FR-35: biểu đồ số đo theo cửa sổ 5 phút")
+def chart(room_id: str, hours: int = 24, includeSoil: bool = False, user: CurrentUser = Depends(current_user)):
     """Mỗi điểm là một cửa sổ 5 phút (UTC). temp/hum là null nếu cửa sổ đó không có giá trị tương ứng; n là số lần đo trong cửa sổ."""
     room_id = _authorize(room_id, user)
     with engine().connect() as c:
-        rows = c.execute(text("""SELECT window_start, avg_temp, avg_hum, min_temp, max_temp, min_hum, max_hum, sample_count
-                                 FROM sensor_aggregates
-                                 WHERE room_id=:r AND window_start >= now() - make_interval(hours => :h)
+        rows = c.execute(text("""WITH climate AS (
+                                   SELECT window_start, avg_temp, avg_hum, min_temp, max_temp, min_hum, max_hum, sample_count
+                                   FROM sensor_aggregates
+                                   WHERE room_id=:r AND window_start >= date_bin('5 minutes',
+                                         now() - make_interval(hours => :h), TIMESTAMPTZ 'epoch')
+                                 ), recent AS (
+                                   SELECT date_bin('5 minutes', recorded_at, TIMESTAMPTZ 'epoch') AS window_start,
+                                          avg(temperature) AS avg_temp, min(temperature) AS min_temp,
+                                          max(temperature) AS max_temp, avg(humidity) AS avg_hum,
+                                          min(humidity) AS min_hum, max(humidity) AS max_hum,
+                                          count(*) AS sample_count,
+                                          avg(soil_moisture) AS avg_soil, min(soil_moisture) AS min_soil,
+                                          max(soil_moisture) AS max_soil, count(soil_moisture) AS soil_count
+                                   FROM sensor_readings
+                                   WHERE room_id=:r
+                                     AND recorded_at >= date_bin('5 minutes',
+                                         now() - make_interval(hours => LEAST(:h, 168)), TIMESTAMPTZ 'epoch')
+                                   GROUP BY 1
+                                 ), windows AS (
+                                   SELECT *, false AS use_recent
+                                   FROM climate
+                                   UNION ALL
+                                   SELECT window_start, avg_temp, avg_hum, min_temp, max_temp, min_hum, max_hum,
+                                          sample_count, true AS use_recent
+                                   FROM recent
+                                 ), best AS (
+                                   SELECT DISTINCT ON (window_start) *
+                                   FROM windows
+                                   ORDER BY window_start, sample_count DESC, use_recent
+                                 )
+                                 SELECT window_start, best.avg_temp, best.avg_hum, best.min_temp, best.max_temp,
+                                        best.min_hum, best.max_hum, best.sample_count, avg_soil, min_soil, max_soil,
+                                        COALESCE(soil_count, 0) AS soil_count
+                                 FROM best LEFT JOIN recent USING (window_start)
                                  ORDER BY window_start"""), {"r": room_id, "h": max(1, min(hours, 24 * 30))})
         f = lambda v: None if v is None else float(v)       # noqa: E731
         return [{"t": r.window_start.isoformat(), "temp": f(r.avg_temp), "hum": f(r.avg_hum),
                  "tempMin": f(r.min_temp), "tempMax": f(r.max_temp), "humMin": f(r.min_hum), "humMax": f(r.max_hum),
-                 "n": r.sample_count} for r in rows]
+                 "n": r.sample_count,
+                 **({"soil": f(r.avg_soil), "soilMin": f(r.min_soil), "soilMax": f(r.max_soil),
+                     "soilN": r.soil_count} if includeSoil else {})} for r in rows]
 
 
 class ThresholdIn(BaseModel):

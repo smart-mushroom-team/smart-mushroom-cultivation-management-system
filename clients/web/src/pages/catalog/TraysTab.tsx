@@ -7,6 +7,7 @@ import { input, primary } from './ui'
 import { useAuth } from '../../auth/AuthContext'
 import { parseInt_, planTrays } from '../../lib/catalog'
 
+const rows = [1, 2, 3, 4]
 const positions = Array.from({ length: 32 }, (_, i) => ({ row: Math.floor(i / 8) + 1, shelf: Math.floor(i % 8 / 4) + 1, slot: i % 4 + 1 }))
 const positionKey = (row: number, shelf: number, slot: number) => `${row}-${shelf}-${slot}`
 
@@ -31,7 +32,10 @@ export function TraysTab() {
   const activeRooms = useMemo(() => (rooms.data ?? []).filter(r => (canEdit ? r.status === 'ACTIVE' : true) && r.name.toLowerCase().includes(search.toLowerCase())), [rooms.data, search])
   useEffect(() => { if (!roomId && activeRooms.length) setRoomId(activeRooms[0].id) }, [activeRooms, roomId])
   const current = rooms.data?.find(r => r.id === roomId)
-  const occupied = new Map<string, Tray>((trays.data ?? []).filter(t => t.roomId === roomId).map(t => [positionKey(t.row,t.shelf,t.slot),t]))
+  const roomTrays = (trays.data ?? [])
+    .filter(tray => tray.roomId === roomId)
+    .sort((a, b) => a.shelf - b.shelf || a.slot - b.slot || a.code.localeCompare(b.code))
+  const occupied = new Map(roomTrays.map(tray => [positionKey(tray.row, tray.shelf, tray.slot), tray]))
   const place = positions.find(p => positionKey(p.row,p.shelf,p.slot) === selected)
   const selectedTray = selected ? occupied.get(selected) : undefined
   const validCount = parseInt_(count, 1, 32)
@@ -84,84 +88,98 @@ export function TraysTab() {
   }
 
   return <div className="space-y-5">
-    {canEdit && <section className="rounded-lg border border-line bg-paper p-4">
-      {!showAdd ? <button type="button" className={primary} onClick={() => { setShowAdd(true); setSubmitted(true) }}>Thêm khay</button> : <form onSubmit={submitBatch} noValidate className="space-y-3">
-        <h2 className="font-display text-lg font-semibold">Thêm khay</h2>
-        <div>
-          <label className="block text-sm font-medium" htmlFor="t-room">Phòng</label>
-          <select id="t-room" className={input} value={batchRoomId} onChange={e => { setBatchRoomId(e.target.value); setRoomId(e.target.value) }}>
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(16rem,22rem)]">
+      <div className="@container min-w-0 space-y-5">
+        <div className="rounded-lg border border-line bg-paper p-4 space-y-3">
+          <h2 className="font-display text-lg font-semibold">Chọn phòng và bố trí khay</h2>
+          <label className="block text-sm font-medium" htmlFor="room-search">Tìm phòng</label>
+          <input id="room-search" className={input} value={search} onChange={e => setSearch(e.target.value)} placeholder="Nhập tên phòng..." />
+          <label className="block text-sm font-medium" htmlFor="tray-room">Phòng</label>
+          <select id="tray-room" className={input} value={activeRooms.some(r => r.id === roomId) ? roomId : ''} onChange={e => { setRoomId(e.target.value); setSelected(null); setError('') }}>
             <option value="">Chọn phòng</option>
             {activeRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
-          {submitted && !batchRoomId && <p className="mt-1 text-sm text-brick">Chọn phòng đặt khay.</p>}
         </div>
-        <div>
-          <label className="block text-sm font-medium" htmlFor="tray-code">Mã khay (hoặc tiền tố)</label>
-          <input id="tray-code" className={input} value={code} maxLength={50} onChange={e => setCode(e.target.value)} />
-          {submitted && !code.trim() && <p className="mt-1 text-sm text-brick">Nhập mã khay.</p>}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block text-sm font-medium" htmlFor="tray-count">Số lượng
-            <input id="tray-count" className={input} inputMode="numeric" value={count} onChange={e => setCount(e.target.value)} />
-          </label>
-          <label className="block text-sm font-medium" htmlFor="tray-start">Ô (bắt đầu từ)
-            <input id="tray-start" className={input} inputMode="numeric" value={startSlot} onChange={e => setStartSlot(e.target.value)} />
-          </label>
-        </div>
-        {submitted && validCount === null && <p className="text-sm text-brick">Số lượng phải từ 1 đến 32.</p>}
-        {submitted && firstSlot === null && <p className="text-sm text-brick">Ô bắt đầu phải từ 1 đến 32.</p>}
-        {submitted && firstSlot !== null && validCount !== null && firstSlot + validCount - 1 > 32 && <p className="text-sm text-brick">Số khay vượt quá 32 ô trong phòng.</p>}
-        <div className="flex gap-2">
-          <button type="submit" className={primary} disabled={adding}>{adding ? 'Đang thêm...' : 'Thêm khay'}</button>
-          <button type="button" className="rounded-md border border-line px-3 py-1.5 text-sm" onClick={() => { setShowAdd(false); setSubmitted(false); setBatchError('') }}>Hủy</button>
-        </div>
-        {batchError && <Notice tone="error">{batchError}</Notice>}
-      </form>}
-    </section>}
-    <div className="rounded-lg border border-line bg-paper p-4 space-y-3">
-      <h2 className="font-display text-lg font-semibold">Chọn phòng và bố trí khay</h2>
-      <label className="block text-sm font-medium" htmlFor="room-search">Tìm phòng</label>
-      <input id="room-search" className={input} value={search} onChange={e => setSearch(e.target.value)} placeholder="Nhập tên phòng..." />
-      <label className="block text-sm font-medium" htmlFor="tray-room">Phòng</label>
-      <select id="tray-room" className={input} value={activeRooms.some(r => r.id === roomId) ? roomId : ''} onChange={e => { setRoomId(e.target.value); setSelected(null); setError('') }}>
-        <option value="">Chọn phòng</option>
-        {activeRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-      </select>
+        {trays.isError && <Notice tone="error">Không tải được khay: {describeError(trays.error)}</Notice>}
+        {current && <div className="rounded-lg border border-line bg-paper p-4 space-y-4">
+          <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">Sơ đồ {current.name}</h3><span className="text-sm text-mute">{occupied.size}/32 vị trí đã có khay</span></div>
+          <p className="text-sm text-mute">4 hàng × 2 kệ × 4 ô. {canEdit ? 'Chọn một ô để thêm khay; ô đã có khay hiển thị mã và trạng thái.' : 'Chọn một ô để xem thông tin khay; không thể thay đổi dữ liệu.'}</p>
+          <div className="space-y-4">{rows.map(row => <section key={row}>
+            <h4 className="mb-2 font-semibold">Hàng {row}</h4>
+            <div className="grid gap-3 @min-[36rem]:grid-cols-2">{[1,2].map(shelf => <div key={shelf} className="rounded-lg border border-line p-3">
+              <div className="mb-2 text-sm text-mute">Kệ {shelf}</div>
+              <div className="grid grid-cols-4 gap-2">{[1,2,3,4].map(slot => {
+                const key = positionKey(row,shelf,slot), tray = occupied.get(key)
+                return <button type="button" key={slot} onClick={() => { setSelected(key); setError('') }} aria-pressed={selected === key} aria-label={`H${row}-K${shelf}-O${slot}${tray ? `, ${tray.code}` : ', trống'}`} className={`min-h-20 rounded-md border p-2 text-xs transition-colors ${selected === key ? 'border-moss ring-2 ring-moss' : 'border-line'} ${tray ? tray.occupancy === 'RENTED' ? 'bg-amber-soft' : 'bg-moss-soft' : 'bg-bone'}`}>
+                  <span className="block font-semibold">O{slot}</span><span className="mt-1 block break-all">{tray ? tray.code : 'Trống'}</span><span className="block">{tray?.occupancy === 'RENTED' ? 'Đang thuê' : tray ? 'Sẵn sàng' : ''}</span>
+                </button>
+              })}</div>
+            </div>)}</div>
+          </section>)}</div>
+        </div>}
+        {!current && <p className="text-sm text-mute">Chọn một phòng đang hoạt động để xem sơ đồ.</p>}
+      </div>
+      <div className="min-w-0 space-y-5">
+        {canEdit && <section className="rounded-lg border border-line bg-paper p-4">
+          {!showAdd ? <button type="button" className={primary} onClick={() => { setShowAdd(true); setSubmitted(true) }}>Thêm khay</button> : <form onSubmit={submitBatch} noValidate className="space-y-3">
+            <h2 className="font-display text-lg font-semibold">Thêm khay</h2>
+            <div>
+              <label className="block text-sm font-medium" htmlFor="t-room">Phòng</label>
+              <select id="t-room" className={input} value={batchRoomId} onChange={e => { setBatchRoomId(e.target.value); setRoomId(e.target.value); setSelected(null); setError('') }}>
+                <option value="">Chọn phòng</option>
+                {activeRooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+              {submitted && !batchRoomId && <p className="mt-1 text-sm text-brick">Chọn phòng đặt khay.</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium" htmlFor="tray-code">Mã khay (hoặc tiền tố)</label>
+              <input id="tray-code" className={input} value={code} maxLength={50} onChange={e => setCode(e.target.value)} />
+              {submitted && !code.trim() && <p className="mt-1 text-sm text-brick">Nhập mã khay.</p>}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-medium" htmlFor="tray-count">Số lượng
+                <input id="tray-count" className={input} inputMode="numeric" value={count} onChange={e => setCount(e.target.value)} />
+              </label>
+              <label className="block text-sm font-medium" htmlFor="tray-start">Ô (bắt đầu từ)
+                <input id="tray-start" className={input} inputMode="numeric" value={startSlot} onChange={e => setStartSlot(e.target.value)} />
+              </label>
+            </div>
+            {submitted && validCount === null && <p className="text-sm text-brick">Số lượng phải từ 1 đến 32.</p>}
+            {submitted && firstSlot === null && <p className="text-sm text-brick">Ô bắt đầu phải từ 1 đến 32.</p>}
+            {submitted && firstSlot !== null && validCount !== null && firstSlot + validCount - 1 > 32 && <p className="text-sm text-brick">Số khay vượt quá 32 ô trong phòng.</p>}
+            <div className="flex gap-2">
+              <button type="submit" className={primary} disabled={adding}>{adding ? 'Đang thêm...' : 'Thêm khay'}</button>
+              <button type="button" className="rounded-md border border-line px-3 py-1.5 text-sm" onClick={() => { setShowAdd(false); setSubmitted(false); setBatchError('') }}>Hủy</button>
+            </div>
+            {batchError && <Notice tone="error">{batchError}</Notice>}
+          </form>}
+        </section>}
+        {place && <div className="rounded-lg border border-line bg-paper p-4 space-y-3">
+          <h3 className="font-semibold">Vị trí H{place.row}-K{place.shelf}-O{place.slot}</h3>
+          {selectedTray ? <><p className="text-sm">Khay {selectedTray.code} — {selectedTray.occupancy === 'RENTED' ? 'Đang thuê' : 'Sẵn sàng'}</p>
+            {canEdit && <button type="button" className="rounded border border-line px-3 py-2 text-sm" disabled={selectedTray.occupancy === 'RENTED' || remove.isPending} onClick={() => { if (window.confirm(`Xóa khay ${selectedTray.code}?`)) remove.mutate(selectedTray.id) }}>Xóa khay chưa từng thuê</button>}
+          </> : canEdit ? <form onSubmit={e => { e.preventDefault(); if (code.trim()) addOne.mutate() }} className="flex flex-wrap items-end gap-3">
+            <div className="flex-1"><label htmlFor="new-tray-code" className="block text-sm font-medium">Mã khay</label><input id="new-tray-code" className={input} maxLength={50} value={code} onChange={e => setCode(e.target.value)} placeholder="VD: A-H1-K1-O2" /></div>
+            <button type="submit" className={primary} disabled={!code.trim() || addOne.isPending}>Thêm khay vào ô</button>
+          </form> : <p className="text-sm text-mute">Ô này chưa có khay.</p>}
+          {error && <Notice tone="error">{error}</Notice>}
+        </div>}
+      </div>
     </div>
-    {trays.isError && <Notice tone="error">Không tải được khay: {describeError(trays.error)}</Notice>}
-    {current && <div className="rounded-lg border border-line bg-paper p-4 space-y-4">
-      <div className="flex flex-wrap justify-between gap-2"><h3 className="font-semibold">Sơ đồ {current.name}</h3><span className="text-sm text-mute">{occupied.size}/32 vị trí đã có khay</span></div>
-      <p className="text-sm text-mute">4 hàng × 2 kệ × 4 ô. {canEdit ? 'Chọn một ô để thêm khay; ô đã có khay hiển thị mã và trạng thái.' : 'Chọn một ô để xem thông tin khay; không thể thay đổi dữ liệu.'}</p>
-      <div className="space-y-4">{[1,2,3,4].map(row => <section key={row}>
-        <h4 className="mb-2 font-semibold">Hàng {row}</h4>
-        <div className="grid gap-3 md:grid-cols-2">{[1,2].map(shelf => <div key={shelf} className="rounded-lg border border-line p-3">
-          <div className="mb-2 text-sm text-mute">Kệ {shelf}</div>
-          <div className="grid grid-cols-4 gap-2">{[1,2,3,4].map(slot => {
-            const key = positionKey(row,shelf,slot), tray = occupied.get(key)
-            return <button type="button" key={slot} onClick={() => { setSelected(key); setError('') }} aria-pressed={selected === key} aria-label={`H${row}-K${shelf}-O${slot}${tray ? `, ${tray.code}` : ', trống'}`} className={`min-h-20 rounded-md border p-2 text-xs transition-colors ${selected === key ? 'border-moss ring-2 ring-moss' : 'border-line'} ${tray ? tray.occupancy === 'RENTED' ? 'bg-amber-soft' : 'bg-moss-soft' : 'bg-bone'}`}>
-              <span className="block font-semibold">O{slot}</span><span className="mt-1 block break-all">{tray ? tray.code : 'Trống'}</span><span className="block">{tray?.occupancy === 'RENTED' ? 'Đang thuê' : tray ? 'Sẵn sàng' : ''}</span>
-            </button>
-          })}</div>
-        </div>)}</div>
-      </section>)}</div>
-    </div>}
-    {!!trays.data?.length && <section className="rounded-lg border border-line bg-paper p-4">
-      <h2 className="mb-3 font-display text-lg font-semibold">Danh sách khay</h2>
-      <ul className="space-y-3">
-        {trays.data.map(tray => <TrayRow key={tray.id} tray={tray} rooms={rooms.data ?? []} canEdit={canEdit} onChanged={() => qc.invalidateQueries({ queryKey: ['trays'] })} />)}
-      </ul>
+    {current && !trays.isPending && !trays.isError && <section className="rounded-lg border border-line bg-paper p-4" aria-labelledby="tray-list-title">
+      <h2 id="tray-list-title" className="mb-4 font-display text-lg font-semibold">Danh sách khay</h2>
+      <div className="space-y-5">
+        {rows.map(row => {
+          const rowTrays = roomTrays.filter(tray => tray.row === row)
+          return <section key={row} aria-labelledby={`tray-list-row-${row}`}>
+            <h3 id={`tray-list-row-${row}`} className="mb-2 font-semibold">Hàng {row}</h3>
+            {rowTrays.length ? <ul className="space-y-2">
+              {rowTrays.map(tray => <TrayRow key={tray.id} tray={tray} rooms={rooms.data ?? []} canEdit={canEdit} onChanged={() => qc.invalidateQueries({ queryKey: ['trays'] })} />)}
+            </ul> : <p className="text-sm text-mute">Hàng này chưa có khay.</p>}
+          </section>
+        })}
+      </div>
     </section>}
-    {place && <div className="rounded-lg border border-line bg-paper p-4 space-y-3">
-      <h3 className="font-semibold">Vị trí H{place.row}-K{place.shelf}-O{place.slot}</h3>
-      {selectedTray ? <><p className="text-sm">Khay {selectedTray.code} — {selectedTray.occupancy === 'RENTED' ? 'Đang thuê' : 'Sẵn sàng'}</p>
-        {canEdit && <button type="button" className="rounded border border-line px-3 py-2 text-sm" disabled={selectedTray.occupancy === 'RENTED' || remove.isPending} onClick={() => { if (window.confirm(`Xóa khay ${selectedTray.code}?`)) remove.mutate(selectedTray.id) }}>Xóa khay chưa từng thuê</button>}
-      </> : canEdit ? <form onSubmit={e => { e.preventDefault(); if (code.trim()) addOne.mutate() }} className="flex flex-wrap items-end gap-3">
-        <div className="flex-1"><label htmlFor="new-tray-code" className="block text-sm font-medium">Mã khay</label><input id="new-tray-code" className={input} maxLength={50} value={code} onChange={e => setCode(e.target.value)} placeholder="VD: A-H1-K1-O2" /></div>
-        <button type="submit" className={primary} disabled={!code.trim() || addOne.isPending}>Thêm khay vào ô</button>
-      </form> : <p className="text-sm text-mute">Ô này chưa có khay.</p>}
-      {error && <Notice tone="error">{error}</Notice>}
-    </div>}
-    {!current && <p className="text-sm text-mute">Chọn một phòng đang hoạt động để xem sơ đồ.</p>}
   </div>
 }
 
@@ -199,7 +217,13 @@ function TrayRow({ tray, rooms, canEdit, onChanged }: { tray: Tray; rooms: { id:
         <button type="button" className="rounded-md border border-line px-3 py-1.5 text-sm" onClick={() => { setEditing(false); setTrayCode(tray.code); setTargetRoom(tray.roomId); setError('') }}>Hủy</button>
       </div>
     </div> : <div className="flex flex-wrap items-center justify-between gap-2">
-      <span className="font-medium">{tray.code} — {rooms.find(room => room.id === tray.roomId)?.name ?? 'Không rõ phòng'} — {rented ? 'Đang thuê' : 'Sẵn sàng'}</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <span className="break-all font-semibold">{tray.code}</span>
+        <span className="text-mute">H{tray.row}-K{tray.shelf}-O{tray.slot}</span>
+        <span className={`rounded px-2 py-1 ${rented ? 'bg-amber-soft' : 'bg-moss-soft'}`}>
+          {rented ? 'Đang được thuê' : 'Sẵn sàng'}
+        </span>
+      </div>
       {canEdit && <div className="flex gap-2">
         <button type="button" className="rounded-md border border-line px-3 py-1.5 text-sm" onClick={() => setEditing(true)}>Sửa khay {tray.code}</button>
         <button type="button" className="rounded-md border border-line px-3 py-1.5 text-sm" onClick={() => { setConfirming(true); setError('') }}>Xóa khay {tray.code}</button>
