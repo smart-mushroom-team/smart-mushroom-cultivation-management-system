@@ -158,10 +158,12 @@ class Reading {
   const Reading(
       {required this.temperature,
       required this.humidity,
+      this.soilMoisture,
       required this.recordedAt});
 
   final double? temperature;
   final double? humidity;
+  final double? soilMoisture;
   final String recordedAt;
 }
 
@@ -179,6 +181,7 @@ class LatestReading {
           : Reading(
               temperature: (s['temperature'] as num?)?.toDouble(),
               humidity: (s['humidity'] as num?)?.toDouble(),
+              soilMoisture: (s['soilMoisture'] as num?)?.toDouble(),
               recordedAt: s['recordedAt'] as String),
       deviceOnline: j['deviceOnline'] == true,
     );
@@ -186,16 +189,19 @@ class LatestReading {
 }
 
 class ChartPoint {
-  const ChartPoint({required this.t, required this.temp, required this.hum});
+  const ChartPoint(
+      {required this.t, required this.temp, required this.hum, this.soil});
 
   final DateTime t;
   final double? temp;
   final double? hum;
+  final double? soil;
 
   factory ChartPoint.fromJson(Map<String, dynamic> j) => ChartPoint(
       t: DateTime.parse(j['t'] as String),
       temp: (j['temp'] as num?)?.toDouble(),
-      hum: (j['hum'] as num?)?.toDouble());
+      hum: (j['hum'] as num?)?.toDouble(),
+      soil: (j['soil'] as num?)?.toDouble());
 }
 
 /// "27.4" -> "27,4 °C" (dấu phẩy kiểu Việt Nam, một chữ số thập phân); null -> "—".

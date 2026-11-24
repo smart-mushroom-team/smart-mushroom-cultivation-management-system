@@ -216,3 +216,24 @@ def test_chart_returns_null_for_missing_kind_and_respects_hours(client, operator
     both = client.get(f"/rooms/{room}/chart?hours=6", headers=operator).json()
     assert [p["n"] for p in both] == [1, 1] and both[0]["t"] < both[1]["t"]               # tăng dần theo thời gian
     assert client.get(f"/rooms/{room}/chart?hours=0", headers=operator).status_code == 200   # giá trị lạ không làm nổ truy vấn
+
+
+def test_chart_uses_raw_readings_before_climate_aggregation(client, operator, room):
+    key = client.post("/devices", json={"name": "s", "type": "SENSOR_NODE", "roomId": room},
+                      headers=operator).json()["apiKey"]
+    now = dt.datetime.now(UTC)
+    bucket = now.replace(minute=now.minute // 5 * 5, second=0, microsecond=0)
+    for offset, soil in ((-5, 0), (-5, 72), (0, None)):
+        body = {"temperature": 25, "soilMoisture": soil,
+                "recordedAt": (bucket + dt.timedelta(minutes=offset)).isoformat()}
+        assert client.post("/iot/telemetry", json=body, headers={"X-Device-Key": key}).status_code == 202
+
+    url = f"/rooms/{room}/chart"
+    climate = client.get(url, headers=operator).json()
+    assert [point["temp"] for point in climate] == [25, 25]
+    assert "soil" not in climate[0]
+    points = client.get(url, params={"includeSoil": True}, headers=operator).json()
+    assert len(points) == 2
+    assert (points[0]["soil"], points[0]["soilMin"], points[0]["soilMax"], points[0]["soilN"]) == (36, 0, 72, 2)
+    assert points[0]["temp"] == 25 and points[0]["n"] == 2
+    assert points[1]["soil"] is None and points[1]["soilN"] == 0

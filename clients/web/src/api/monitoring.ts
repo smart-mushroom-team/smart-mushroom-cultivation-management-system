@@ -13,6 +13,10 @@ export type ChartPoint = {
   humMin: number | null
   humMax: number | null
   n: number
+  soil?: number | null
+  soilMin?: number | null
+  soilMax?: number | null
+  soilN?: number
 }
 
 export type Thresholds = {
@@ -30,7 +34,7 @@ export type SnapshotPage = { items: SnapshotItem[]; page: number; total: number;
 const room = (id: string) => `/api/monitoring/rooms/${id}`
 
 export const getLatest = (roomId: string) => api<Latest>(`${room(roomId)}/latest`)
-export const getChart = (roomId: string, hours: number) => api<ChartPoint[]>(`${room(roomId)}/chart`, { query: { hours } })
+export const getChart = (roomId: string, hours: number) => api<ChartPoint[]>(`${room(roomId)}/chart`, { query: { hours, includeSoil: true } })
 export const getThresholds = (roomId: string) => api<ThresholdState>(`${room(roomId)}/thresholds`)
 export const putThresholds = (roomId: string, t: Thresholds) => api<{ ok: boolean }>(`${room(roomId)}/thresholds`, { method: 'PUT', body: t })
 

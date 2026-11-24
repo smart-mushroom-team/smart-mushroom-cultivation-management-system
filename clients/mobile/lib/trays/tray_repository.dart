@@ -55,7 +55,8 @@ class TrayRepository {
       LatestReading.fromJson(await _api.get('/api/monitoring/rooms/$roomId/latest') as Map<String, dynamic>);
 
   Future<List<ChartPoint>> chart(String roomId, {int hours = 24}) async {
-    final raw = await _api.get('/api/monitoring/rooms/$roomId/chart', query: {'hours': '$hours'}) as List<dynamic>;
+    final raw = await _api.get('/api/monitoring/rooms/$roomId/chart',
+        query: {'hours': '$hours', 'includeSoil': 'true'}) as List<dynamic>;
     return [for (final p in raw) ChartPoint.fromJson(p as Map<String, dynamic>)];
   }
 

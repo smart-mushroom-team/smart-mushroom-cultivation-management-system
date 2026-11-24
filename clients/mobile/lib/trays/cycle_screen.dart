@@ -15,6 +15,30 @@ import 'tray_models.dart';
 import 'tray_repository.dart';
 import 'trays_tab.dart' show StageBar;
 
+enum _Metric {
+  temperature('Nhiệt độ', '°C', Color(0xFFB4533A)),
+  humidity('Độ ẩm', '%', Color(0xFF2F6F8F)),
+  soil('Độ ẩm đất', '%', AppColors.moss);
+
+  const _Metric(this.label, this.unit, this.color);
+
+  final String label;
+  final String unit;
+  final Color color;
+
+  String value(Reading? reading) => switch (this) {
+        temperature => formatTemp(reading?.temperature),
+        humidity => formatHumidity(reading?.humidity),
+        soil => formatHumidity(reading?.soilMoisture),
+      };
+
+  double? point(ChartPoint point) => switch (this) {
+        temperature => point.temp,
+        humidity => point.hum,
+        soil => point.soil,
+      };
+}
+
 /// Chi tiết một khay: tiến độ, nhật ký, số đo hiện tại, biểu đồ 24 giờ và ảnh camera đúng khu vực khay đang thuê.
 /// Màn này nằm trên Navigator nên nhận [auth] trực tiếp (không đứng dưới AuthScope của HomeShell chắc chắn).
 class CycleScreen extends StatefulWidget {
@@ -41,6 +65,7 @@ class _CycleScreenState extends State<CycleScreen> {
   Cycle? _cycle;
   Object? _cycleError;
   List<ChartPoint>? _chart;
+  _Metric _metric = _Metric.temperature;
   Object? _chartError;
   CameraImage? _image;
   Object? _imageError;
@@ -73,10 +98,45 @@ class _CycleScreenState extends State<CycleScreen> {
   Widget _roomBody(Cycle? c, LatestReading? data, Object? error) {
     final range = c?.varietyRange;
     final a = assess(data, range, DateTime.now());
+    final values = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final metric in _Metric.values)
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(right: metric == _Metric.soil ? 0 : 6),
+              child: Semantics(
+                selected: _metric == metric,
+                child: OutlinedButton(
+                  key: ValueKey('metric-${metric.name}'),
+                  onPressed: () => setState(() => _metric = metric),
+                  style: OutlinedButton.styleFrom(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    backgroundColor:
+                        _metric == metric ? AppColors.sporeSoft : null,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(metric.label, textAlign: TextAlign.center),
+                      Text(metric.value(data?.reading),
+                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        RoomReadingView(data: data, error: error),
+        if (data?.reading == null) values,
+        RoomReadingView(data: data, error: error, values: values),
+        const SizedBox(height: 12),
+        _Section(title: '24 giờ gần nhất', children: _chartBody()),
         if (a != null && range != null) ...[
           ConditionTiles(assessment: a, reading: data?.reading, range: range),
           EnvironmentNotice(assessment: a),
@@ -210,8 +270,6 @@ class _CycleScreenState extends State<CycleScreen> {
               ),
             ]),
             const SizedBox(height: 20),
-            _Section(title: '24 giờ gần nhất', children: _chartBody()),
-            const SizedBox(height: 20),
             _Section(title: 'Camera', children: _cameraBody()),
             if (c != null && c.logs.isNotEmpty) ...[
               const SizedBox(height: 20),
@@ -226,39 +284,55 @@ class _CycleScreenState extends State<CycleScreen> {
   }
 
   List<Widget> _chartBody() {
+    return [
+      _selectedChart(),
+      if (_metric == _Metric.soil)
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Text(
+            'Thông số này được trích từ 1 khay của phòng, chỉ mang giá trị xấp xỉ cho khay của bạn.',
+            style: TextStyle(color: AppColors.mute, fontSize: 12),
+          ),
+        ),
+    ];
+  }
+
+  Widget _selectedChart() {
     final chart = _chart;
+    if (_chartError case final error?) {
+      return Text('Không tải được biểu đồ. ${describeError(error)}',
+          key: const Key('chart-state'),
+          style: const TextStyle(color: AppColors.mute));
+    }
     if (chart == null) {
-      return [
-        Text(
-            _chartError == null
-                ? 'Đang tải biểu đồ…'
-                : 'Không tải được biểu đồ. ${describeError(_chartError!)}',
-            key: const Key('chart-state'),
-            style: const TextStyle(color: AppColors.mute))
-      ];
+      return const Text('Đang tải biểu đồ…',
+          key: Key('chart-state'), style: TextStyle(color: AppColors.mute));
     }
     if (chart.isEmpty) {
-      return [
-        const Text('Chưa có số liệu trong 24 giờ qua.',
-            key: Key('chart-state'), style: TextStyle(color: AppColors.mute))
-      ];
+      return const Text('Chưa có số liệu trong 24 giờ qua.',
+          key: Key('chart-state'), style: TextStyle(color: AppColors.mute));
     }
-    return [
-      MiniChart(
-          title: 'Nhiệt độ',
-          values: [for (final p in chart) p.temp],
-          unit: '°C',
-          color: const Color(0xFFB4533A),
-          minSpan: 2),
-      const SizedBox(height: 16),
-      MiniChart(
-          title: 'Độ ẩm',
-          values: [for (final p in chart) p.hum],
-          unit: '%',
-          color: const Color(0xFF2F6F8F),
-          fractionDigits: 0,
-          minSpan: 5),
-    ];
+    final values = <double?>[];
+    const window = Duration(minutes: 5);
+    for (var i = 0; i < chart.length; i++) {
+      if (i > 0) {
+        final gap = chart[i].t.difference(chart[i - 1].t);
+        for (var missing = window; missing < gap; missing += window) {
+          values.add(null);
+        }
+      }
+      values.add(_metric.point(chart[i]));
+    }
+    final isTemp = _metric == _Metric.temperature;
+    return MiniChart(
+      key: ValueKey('chart-${_metric.name}'),
+      title: _metric.label,
+      values: values,
+      unit: _metric.unit,
+      color: _metric.color,
+      fractionDigits: isTemp ? 1 : 0,
+      minSpan: isTemp ? 2 : 5,
+    );
   }
 
   List<Widget> _cameraBody() {
